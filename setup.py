@@ -28,9 +28,8 @@
 
 """
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 from setuptools.command.build import build
-
 
 PACKAGE_DATA = {
     "cms.server": [
@@ -158,6 +157,7 @@ setup(
             "Interactive=cms.grading.tasktypes.Interactive:Interactive",
             "OutputOnly=cms.grading.tasktypes.OutputOnly:OutputOnly",
             "TwoSteps=cms.grading.tasktypes.TwoSteps:TwoSteps",
+            "UniqueOutputOnly=cms.grading.tasktypes.UniqueOutputOnly:UniqueOutputOnly",
         ],
         "cms.grading.scoretypes": [
             "Sum=cms.grading.scoretypes.Sum:Sum",
