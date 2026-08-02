@@ -39,7 +39,7 @@ except:
 
 import tornado.web
 
-from cms.db import Attachment, Dataset, Session, Statement, Submission, Task
+from cms.db import Attachment, Dataset, Participation, Session, Statement, Submission, Task
 from cmscommon.datetime import make_datetime
 from .base import BaseHandler, SimpleHandler, require_permission
 
@@ -322,6 +322,12 @@ class AddAttachmentHandler(BaseHandler):
 
         self.r_params = self.render_params()
         self.r_params["task"] = task
+        self.r_params["participations"] = (
+            self.sql_session.query(Participation)
+            .filter(Participation.contest_id == task.contest_id)
+            .order_by(Participation.id)
+            .all()
+        )
         self.render("add_attachment.html", **self.r_params)
 
     @require_permission(BaseHandler.PERMISSION_ALL)
@@ -352,8 +358,23 @@ class AddAttachmentHandler(BaseHandler):
         self.sql_session = Session()
         task = self.safe_get_item(Task, task_id)
 
-        attachment = Attachment(attachment["filename"], digest, task=task)
-        self.sql_session.add(attachment)
+        participation_id = self.get_argument("participation", "")
+        participation = None
+        if participation_id:
+            participation = self.sql_session.query(Participation).filter(
+                Participation.id == int(participation_id)
+            ).first()
+
+        attachment_obj = Attachment(
+            attachment["filename"],
+            digest,
+            task=task,
+        )
+        if hasattr(attachment_obj, "participation_id"):
+            attachment_obj.participation_id = (
+                participation.id if participation is not None else None
+            )
+        self.sql_session.add(attachment_obj)
 
         if self.try_commit():
             self.redirect(self.url("task", task_id))

@@ -63,3 +63,33 @@ class TestParticipationScopedArtifacts(DatabaseMixin, unittest.TestCase):
             self.dataset.get_testcase("sample", None),
             shared_testcase,
         )
+
+    def test_task_get_attachments_prefers_participation_specific_copy(self):
+        shared_attachment = Attachment(
+            task=self.task,
+            filename="statement.txt",
+            digest="shared-digest",
+        )
+        participant_attachment = Attachment(
+            task=self.task,
+            filename="statement.txt",
+            digest="participant-digest",
+            participation=self.participation,
+        )
+        second_shared_attachment = Attachment(
+            task=self.task,
+            filename="notes.txt",
+            digest="shared-notes",
+        )
+        self.session.add_all([
+            shared_attachment,
+            participant_attachment,
+            second_shared_attachment,
+        ])
+        self.session.flush()
+
+        visible_attachments = self.task.get_attachments(self.participation)
+
+        self.assertEqual(visible_attachments["statement.txt"], participant_attachment)
+        self.assertEqual(visible_attachments["notes.txt"], second_shared_attachment)
+        self.assertEqual(self.task.get_attachments(None)["statement.txt"], shared_attachment)

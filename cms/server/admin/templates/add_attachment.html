@@ -6,7 +6,15 @@
 </div>
 <form enctype="multipart/form-data" action="{{ url("task", task.id, "attachments", "add") }}" method="POST">
   {{ xsrf_form_html|safe }}
-  <input type="file" name="attachment"/><br/>
+  <label for="participation">Scope</label>
+  <select id="participation" name="participation">
+    <option value="">Shared with all participants</option>
+    {% for participation in participations %}
+    <option value="{{ participation.id }}">{{ participation.user.username }} (participation #{{ participation.id }})</option>
+    {% endfor %}
+  </select><br/>
+  <label for="attachment">File</label>
+  <input type="file" id="attachment" name="attachment"/><br/>
   <input type="submit" value="Upload">
   <input type="Reset" >
 </form>

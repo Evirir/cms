@@ -171,11 +171,12 @@
 
 
 
-{% if task.attachments|length > 0 %}
+{% set visible_attachments = task.get_attachments(participation) %}
+{% if visible_attachments|length > 0 %}
     <h2>{% trans %}Attachments{% endtrans %}</h2>
     <div id="attachments">
         <ul>
-    {% for filename, attachment in task.attachments|dictsort(by="key") %}
+    {% for filename, attachment in visible_attachments|dictsort(by="key") %}
         {% set mime_type = get_mimetype_for_file_name(filename) %}
         {% if mime_type is not none %}
             {% set type_icon = get_icon_for_mimetype(mime_type) %}

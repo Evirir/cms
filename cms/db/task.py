@@ -311,6 +311,37 @@ class Task(Base):
             .first()
         )
 
+    def get_attachments(self, participation=None) -> dict[str, "Attachment"]:
+        """Return all visible attachments for a participation.
+
+        Participation-specific attachments override shared ones for the same
+        filename. If no session is attached, fall back to the in-memory
+        relationship collection.
+
+        """
+        session = self.sa_session
+        if session is None:
+            return self.attachments
+
+        assert session is not None
+        participation_id = getattr(participation, "id", None)
+
+        attachments = (
+            session.query(Attachment)
+            .filter(Attachment.task_id == self.id)
+            .all()
+        )
+
+        visible: dict[str, "Attachment"] = {}
+        for attachment in attachments:
+            if attachment.participation_id is None:
+                visible.setdefault(attachment.filename, attachment)
+            elif participation_id is not None and \
+                    attachment.participation_id == participation_id:
+                visible[attachment.filename] = attachment
+
+        return visible
+
     def get_allowed_languages(self) -> list[str] | None:
         """Get the list of allowed languages for this task.
 
