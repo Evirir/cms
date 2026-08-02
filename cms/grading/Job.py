@@ -48,6 +48,7 @@ from cms.db import (
     Contest,
     SubmissionResult,
     UserTestResult,
+    Participation,
 )
 from cms.grading.languagemanager import get_language
 from cms.service.esoperations import ESOperation
@@ -97,6 +98,7 @@ class Job:
         files: dict[str, File] | None = None,
         managers: dict[str, Manager] | None = None,
         executables: dict[str, Executable] | None = None,
+        participation: Participation | None = None,
     ):
         """Initialization.
 
@@ -163,6 +165,7 @@ class Job:
         self.files = files
         self.managers = managers
         self.executables = executables
+        self.participation = participation
 
     def export_to_dict(self) -> dict:
         """Return a dict representing the job."""
@@ -536,6 +539,7 @@ class EvaluationJob(Job):
         files: dict[str, File] | None = None,
         managers: dict[str, Manager] | None = None,
         executables: dict[str, Executable] | None = None,
+        participation: Participation | None = None,
         input: str | None = None,
         output: str | None = None,
         time_limit: float | None = None,
@@ -574,7 +578,8 @@ class EvaluationJob(Job):
         Job.__init__(self, operation, task_type, task_type_parameters,
                      language, multithreaded_sandbox, archive_sandbox,
                      shard, keep_sandbox, sandboxes, sandbox_digests, info, success,
-                     text, admin_text, files, managers, executables)
+                     text, admin_text, files, managers, executables,
+                     participation)
         self.input = input
         self.output = output
         self.time_limit = time_limit
@@ -625,7 +630,8 @@ class EvaluationJob(Job):
         # This should have been created by now.
         assert submission_result is not None
 
-        testcase = dataset.testcases[operation.testcase_codename]
+        testcase = dataset.get_testcase(operation.testcase_codename,
+                                         submission.participation)
 
         info = "evaluate submission %d on testcase %s" % \
             (submission.id, testcase.codename)
@@ -642,6 +648,7 @@ class EvaluationJob(Job):
             files=dict(submission.files),
             managers=dict(dataset.managers),
             executables=dict(submission_result.executables),
+            participation=submission.participation,
             input=testcase.input,
             output=testcase.output,
             time_limit=dataset.time_limit,
@@ -669,7 +676,9 @@ class EvaluationJob(Job):
             evaluation_shard=self.shard,
             evaluation_sandbox_paths=self.sandboxes,
             evaluation_sandbox_digests=self.get_sandbox_digest_list(),
-            testcase=sr.dataset.testcases[self.operation.testcase_codename])]
+            testcase=sr.dataset.get_testcase(
+                self.operation.testcase_codename,
+                sr.submission.participation))]
 
     @staticmethod
     def from_user_test(
@@ -717,6 +726,9 @@ class EvaluationJob(Job):
                     managers[manager_filename] = \
                         dataset.managers[manager_filename]
 
+        testcase = dataset.get_testcase(operation.testcase_codename,
+                                         user_test.participation)
+
         return EvaluationJob(
             operation=operation,
             task_type=dataset.task_type,
@@ -727,7 +739,9 @@ class EvaluationJob(Job):
             files=dict(user_test.files),
             managers=managers,
             executables=dict(user_test_result.executables),
-            input=user_test.input,
+            participation=user_test.participation,
+            input=testcase.input,
+            output=testcase.output,
             time_limit=dataset.time_limit,
             memory_limit=dataset.memory_limit,
             info="evaluate user test %d" % (user_test.id),

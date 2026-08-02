@@ -279,6 +279,38 @@ class Task(Base):
         passive_deletes=True,
         back_populates="task")
 
+    def get_attachment(self, filename: str, participation=None):
+        """Return the attachment with the given filename for a participation.
+
+        If a participation-specific attachment exists, return it. Otherwise,
+        fall back to the shared attachment for the task.
+
+        """
+        session = self.sa_session
+        if session is None:
+            return None
+
+        assert session is not None
+        participation_id = getattr(participation, "id", None)
+        if participation_id is not None:
+            attachment = (
+                session.query(Attachment)
+                .filter(Attachment.task_id == self.id)
+                .filter(Attachment.filename == filename)
+                .filter(Attachment.participation_id == participation_id)
+                .first()
+            )
+            if attachment is not None:
+                return attachment
+
+        return (
+            session.query(Attachment)
+            .filter(Attachment.task_id == self.id)
+            .filter(Attachment.filename == filename)
+            .filter(Attachment.participation_id is None)
+            .first()
+        )
+
     def get_allowed_languages(self) -> list[str] | None:
         """Get the list of allowed languages for this task.
 
@@ -342,7 +374,7 @@ class Attachment(Base):
     """
     __tablename__ = 'attachments'
     __table_args__ = (
-        UniqueConstraint('task_id', 'filename'),
+        UniqueConstraint('task_id', 'participation_id', 'filename'),
     )
 
     # Auto increment primary key.
@@ -360,6 +392,15 @@ class Attachment(Base):
     task: Task = relationship(
         Task,
         back_populates="attachments")
+
+    # Participation (id and object) this attachment belongs to, or None for a
+    # shared attachment.
+    participation_id: int | None = Column(
+        Integer,
+        ForeignKey("participations.id",
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=True,
+        index=True)
 
     # Filename and digest of the provided attachment.
     filename: str = Column(
@@ -397,6 +438,38 @@ class Dataset(Base):
         Task,
         foreign_keys=[task_id],
         back_populates="datasets")
+
+    def get_testcase(self, codename: str, participation=None):
+        """Return the testcase for a codename and participation.
+
+        If a participation-specific testcase exists, return it. Otherwise,
+        fall back to the shared testcase for the dataset.
+
+        """
+        session = self.sa_session
+        if session is None:
+            return self.testcases.get(codename)
+
+        assert session is not None
+        participation_id = getattr(participation, "id", None)
+        if participation_id is not None:
+            testcase = (
+                session.query(Testcase)
+                .filter(Testcase.dataset_id == self.id)
+                .filter(Testcase.codename == codename)
+                .filter(Testcase.participation_id == participation_id)
+                .first()
+            )
+            if testcase is not None:
+                return testcase
+
+        return (
+            session.query(Testcase)
+            .filter(Testcase.dataset_id == self.id)
+            .filter(Testcase.codename == codename)
+            .filter(Testcase.participation_id is None)
+            .first()
+        )
 
     # A human-readable text describing the dataset.
     description: str = Column(
@@ -601,7 +674,7 @@ class Testcase(Base):
     """
     __tablename__ = 'testcases'
     __table_args__ = (
-        UniqueConstraint('dataset_id', 'codename'),
+        UniqueConstraint('dataset_id', 'participation_id', 'codename'),
     )
 
     # Auto increment primary key.
@@ -624,6 +697,15 @@ class Testcase(Base):
     codename: str = Column(
         Codename,
         nullable=False)
+
+    # Participation (id and object) this testcase belongs to, or None for a
+    # shared testcase.
+    participation_id: int | None = Column(
+        Integer,
+        ForeignKey("participations.id",
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=True,
+        index=True)
 
     # If the testcase outcome is going to be showed to the user (even
     # without playing a token).

@@ -101,10 +101,11 @@ class TaskAttachmentViewHandler(FileHandler):
         if task is None:
             raise tornado.web.HTTPError(404)
 
-        if filename not in task.attachments:
+        attachment_obj = task.get_attachment(filename, self.current_user)
+        if attachment_obj is None:
             raise tornado.web.HTTPError(404)
 
-        attachment = task.attachments[filename].digest
+        attachment = attachment_obj.digest
         self.sql_session.close()
 
         mimetype = get_type_for_file_name(filename)
