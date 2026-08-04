@@ -35,6 +35,7 @@ from sqlalchemy import case, literal
 from cms.db import Dataset, Evaluation, Submission, SubmissionResult, \
     Task, Testcase, UserTest, UserTestResult
 from cms.db.session import Session
+from cms.db.util import get_participation_testcases
 from cms.io import PriorityQueue, QueueItem
 
 
@@ -199,9 +200,9 @@ def submission_get_operations(
         evaluated_testcase_ids = set(
             evaluation.testcase_id
             for evaluation in submission_result.evaluations)
-        for testcase_codename in dataset.testcases.keys():
-            testcase_id = dataset.testcases[testcase_codename].id
-            if testcase_id not in evaluated_testcase_ids:
+        testcases = get_participation_testcases(dataset, submission.participation_id)
+        for testcase_codename, testcase in testcases.items():
+            if testcase.id not in evaluated_testcase_ids:
                 yield ESOperation(ESOperation.EVALUATION,
                                   submission.id,
                                   dataset.id,
@@ -290,7 +291,9 @@ def get_relevant_operations(
                     ESOperation.COMPILATION,
                     submission.id,
                     dataset.id))
-            for codename in dataset.testcases:
+            for codename in get_participation_testcases(
+                dataset, submission.participation_id
+            ):
                 operations.append(ESOperation(
                     ESOperation.EVALUATION,
                     submission.id,

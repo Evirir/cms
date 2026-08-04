@@ -307,7 +307,7 @@ class Task(Base):
             session.query(Attachment)
             .filter(Attachment.task_id == self.id)
             .filter(Attachment.filename == filename)
-            .filter(Attachment.participation_id is None)
+            .filter(Attachment.participation_id.is_(None))
             .first()
         )
 
@@ -498,7 +498,7 @@ class Dataset(Base):
             session.query(Testcase)
             .filter(Testcase.dataset_id == self.id)
             .filter(Testcase.codename == codename)
-            .filter(Testcase.participation_id is None)
+            .filter(Testcase.participation_id.is_(None))
             .first()
         )
 

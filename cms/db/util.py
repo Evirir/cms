@@ -26,7 +26,7 @@
 import sys
 import logging
 
-from sqlalchemy import union
+from sqlalchemy import func, or_, union
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Query
 
@@ -365,3 +365,67 @@ def enumerate_files(
     digests = set(r[0] for r in session.execute(union(*queries)))
     digests.discard(Digest.TOMBSTONE)
     return digests
+
+
+def get_participation_testcases(
+    dataset: Dataset, participation_id: int | None
+) -> dict[str, Testcase]:
+    """Return testcases visible to a participation for a dataset, keyed by
+    codename.
+
+    Includes testcases owned by the given participation plus shared
+    testcases (participation_id IS NULL). Bypasses the unscoped
+    ``dataset.testcases`` dict shortcut, which ignores per-contestant
+    ownership.
+
+    Args:
+        dataset: the dataset to fetch testcases for.
+        participation_id: id of the participation to scope to, or None
+            to only return shared testcases.
+
+    Returns:
+        mapping of codename to Testcase.
+    """
+    session: Session = Session.object_session(dataset)
+    testcases = (
+        session.query(Testcase)
+        .filter(
+            Testcase.dataset_id == dataset.id,
+            or_(
+                Testcase.participation_id == participation_id,
+                Testcase.participation_id.is_(None),
+            ),
+        )
+        .all()
+    )
+    return {tc.codename: tc for tc in testcases}
+
+
+def get_participation_testcase_count(
+    session: Session, dataset_id: int, participation_id: int | None
+) -> int:
+    """Count testcases visible to a participation for a dataset.
+
+    Includes testcases owned by the given participation plus shared
+    testcases (participation_id IS NULL).
+
+    Args:
+        session: the database session to use.
+        dataset_id: id of the dataset to count testcases for.
+        participation_id: id of the participation to scope to, or None
+            to only count shared testcases.
+
+    Returns:
+        the number of testcases visible to the participation.
+    """
+    return (
+        session.query(func.count(Testcase.id))
+        .filter(
+            Testcase.dataset_id == dataset_id,
+            or_(
+                Testcase.participation_id == participation_id,
+                Testcase.participation_id.is_(None),
+            ),
+        )
+        .scalar()
+    )

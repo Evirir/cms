@@ -45,7 +45,7 @@ from cms.io.priorityqueue import QueueEntry, QueueEntryDict, QueueItem
 from cmscommon.datetime import make_timestamp
 from cms.db import SessionGen, Digest, Dataset, Evaluation, Submission, \
     SubmissionResult, Testcase, UserTest, UserTestResult, get_submissions, \
-    get_submission_results, get_datasets_to_judge
+    get_submission_results, get_datasets_to_judge, get_participation_testcase_count
 from cms.grading.Job import Job, JobGroup
 from cms.io import Executor, TriggeredService, rpc_method
 from .esoperations import ESOperation, get_relevant_operations, \
@@ -510,6 +510,10 @@ class EvaluationService(TriggeredService[ESOperation, EvaluationExecutor]):
             by_object_and_type[t].append((operation, result))
 
         with SessionGen() as session:
+            # Track participation per submission so testcase counts can be
+            # scoped correctly below.
+            participation_by_submission: dict[int, int | None] = {}
+
             for key, operation_results in by_object_and_type.items():
                 type_, object_id, dataset_id, archive_sandbox = key
 
@@ -527,34 +531,44 @@ class EvaluationService(TriggeredService[ESOperation, EvaluationExecutor]):
                                      "in the database.", object_id)
                         continue
                     object_result = object_.get_result_or_create(dataset)
+                    participation_by_submission[object_id] = object_.participation_id
                 else:
                     object_ = UserTest.get_from_id(object_id, session)
                     if object_ is None:
-                        logger.error("Could not find user test %d "
-                                     "in the database.", object_id)
+                        logger.error(
+                            "Could not find user test %d in the database.", object_id
+                        )
                         continue
                     object_result = object_.get_result_or_create(dataset)
 
                 self.write_results_one_object_and_type(
-                    session, object_result, operation_results)
+                    session, object_result, operation_results
+                )
 
             logger.info("Committing evaluations...")
             session.commit()
 
-            num_testcases_per_dataset = dict()
+            num_testcases_per_scope: dict[tuple[int, int | None], int] = {}
             for type_, object_id, dataset_id, archive_sandbox in by_object_and_type.keys():
                 if type_ == ESOperation.EVALUATION:
-                    if dataset_id not in num_testcases_per_dataset:
-                        num_testcases_per_dataset[dataset_id] = session\
-                            .query(func.count(Testcase.id))\
-                            .filter(Testcase.dataset_id == dataset_id).scalar()
-                    num_evaluations = session\
-                        .query(func.count(Evaluation.id)) \
-                        .filter(Evaluation.dataset_id == dataset_id) \
-                        .filter(Evaluation.submission_id == object_id).scalar()
-                    if num_evaluations == num_testcases_per_dataset[dataset_id]:
+                    participation_id = participation_by_submission.get(object_id)
+                    scope_key = (dataset_id, participation_id)
+                    if scope_key not in num_testcases_per_scope:
+                        num_testcases_per_scope[scope_key] = (
+                            get_participation_testcase_count(
+                                session, dataset_id, participation_id
+                            )
+                        )
+                    num_evaluations = (
+                        session.query(func.count(Evaluation.id))
+                        .filter(Evaluation.dataset_id == dataset_id)
+                        .filter(Evaluation.submission_id == object_id)
+                        .scalar()
+                    )
+                    if num_evaluations == num_testcases_per_scope[scope_key]:
                         submission_result = SubmissionResult.get_from_id(
-                            (object_id, dataset_id), session)
+                            (object_id, dataset_id), session
+                        )
                         submission_result.set_evaluation_outcome()
 
             logger.info("Committing evaluation outcomes...")
