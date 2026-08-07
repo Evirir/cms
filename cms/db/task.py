@@ -530,6 +530,62 @@ class Dataset(Base):
             self._cached_public_testcases = public_testcases
         return self._cached_score_type_object
 
+    def get_max_scores_for_participation(
+        self, participation_id: int | None
+    ) -> tuple[float, float, list[str]]:
+        """Return (max_score, max_public_score, ranking_headers) for a
+        specific participation, including their per-participation testcases.
+
+        participation_id: the participation to compute max scores for,
+            or None for shared-only.
+
+        return: max_score, max_public_score, ranking_headers.
+        """
+        if participation_id is None:
+            st = self.score_type_object
+            return st.max_score, st.max_public_score, st.ranking_headers
+
+        extra = {tc.codename: tc.public
+                 for tc in self.testcases.values()
+                 if tc.participation_id == participation_id}
+        if not extra:
+            st = self.score_type_object
+            return st.max_score, st.max_public_score, st.ranking_headers
+
+        return self.score_type_object.max_scores_with_extra(extra)
+
+    def score_type_for_participation(
+        self, participation_id: int | None
+    ) -> "ScoreType":
+        """Return a ScoreType that includes per-participation testcases.
+
+        Builds public_testcases from shared testcases + the given
+        participation's per-participation testcases.  Returns the
+        shared-only ScoreType when participation_id is None or the
+        participation has no per-participation testcases.
+
+        participation_id: the participation to include testcases for,
+            or None for shared-only.
+
+        return: a ScoreType instance.
+        """
+        if participation_id is None:
+            return self.score_type_object
+
+        public_testcases = {
+            k: tc.public
+            for k, tc in self.testcases.items()
+            if tc.participation_id is None
+            or tc.participation_id == participation_id
+        }
+        if public_testcases == self._cached_public_testcases:
+            return self.score_type_object
+
+        from cms.grading.scoretypes import get_score_type
+        return get_score_type(
+            self.score_type, self.score_type_parameters, public_testcases,
+            self.task.score_precision)
+
     def clone_from(self, old_dataset: "Dataset", clone_managers: bool = True,
                    clone_testcases: bool = True, clone_results: bool = False):
         """Overwrite the data with that in dataset.

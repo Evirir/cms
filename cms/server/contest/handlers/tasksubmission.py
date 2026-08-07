@@ -229,11 +229,14 @@ class SubmissionStatusHandler(ContestHandler):
             public_score_is_partial or tokened_score_is_partial
 
         score_type = task.active_dataset.score_type_object
+        max_score, max_public_score, _ = \
+            task.active_dataset.get_max_scores_for_participation(
+                participation.id)
         data["task_public_score_message"] = score_type.format_score(
-            data["task_public_score"], score_type.max_public_score, None,
+            data["task_public_score"], max_public_score, None,
             translation=self.translation)
         data["task_tokened_score_message"] = score_type.format_score(
-            data["task_tokened_score"], score_type.max_score, None,
+            data["task_tokened_score"], max_score, None,
             translation=self.translation)
 
     @api_login_required
@@ -266,22 +269,25 @@ class SubmissionStatusHandler(ContestHandler):
             self.add_task_score(submission.participation, task, data)
 
             score_type = task.active_dataset.score_type_object
-            if score_type.max_public_score > 0:
-                data["max_public_score"] = score_type.max_public_score
+            max_score, max_public_score, _ = \
+                task.active_dataset.get_max_scores_for_participation(
+                    submission.participation_id)
+            if max_public_score > 0:
+                data["max_public_score"] = max_public_score
                 if data["status"] == SubmissionResult.SCORED:
                     data["public_score"] = sr.public_score
                     data["public_score_message"] = score_type.format_score(
-                        sr.public_score, score_type.max_public_score,
+                        sr.public_score, max_public_score,
                         sr.public_score_details,
                         translation=self.translation)
-            if score_type.max_public_score < score_type.max_score:
-                data["max_score"] = score_type.max_score
+            if max_public_score < max_score:
+                data["max_score"] = max_score
                 if data["status"] == SubmissionResult.SCORED \
                         and (submission.token is not None
                              or self.r_params["actual_phase"] == 3):
                     data["score"] = sr.score
                     data["score_message"] = score_type.format_score(
-                        sr.score, score_type.max_score,
+                        sr.score, max_score,
                         sr.score_details,
                         translation=self.translation)
 

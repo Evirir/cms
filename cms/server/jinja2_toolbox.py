@@ -196,8 +196,11 @@ def safe_get_task_type(env: Environment, *, dataset: Dataset):
 
 
 @pass_environment
-def safe_get_score_type(env: Environment, *, dataset: Dataset):
+def safe_get_score_type(env: Environment, *, dataset: Dataset,
+                        participation=None):
     try:
+        if participation is not None:
+            return dataset.score_type_for_participation(participation.id)
         return dataset.score_type_object
     # The score type's constructor is called, which may raise any
     # arbitrary exception, hence we stay as general as possible.

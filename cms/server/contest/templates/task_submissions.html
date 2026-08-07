@@ -4,7 +4,7 @@
 
 {% set page = "task_submissions" %}
 
-{% set score_type = get_score_type(dataset=task.active_dataset) %}
+{% set score_type = get_score_type(dataset=task.active_dataset, participation=participation) %}
 
 {# Whether tokens are allowed on this contest. #}
 {% set can_use_tokens_in_contest =

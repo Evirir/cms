@@ -26,7 +26,7 @@ official (boolean): whether to display only the official (true) or unofficial
     (false) submissions in the submissions list.
 #}
 {% set gettext = translation.gettext %}
-{% set score_type = get_score_type(dataset=task.active_dataset) %}
+{% set score_type = get_score_type(dataset=task.active_dataset, participation=participation) %}
 {% set show_date = not submissions|map(attribute="timestamp")|all("today") %}
 <table class="submission_list table table-bordered table-striped">
 {% set num_cols = 2 %}
@@ -140,7 +140,7 @@ submissions_download_allowed (bool): whether to allow users to download
 
 {% set gettext = translation.gettext %}
 {% set task = s.task %}
-{% set score_type = get_score_type(dataset=task.active_dataset) %}
+{% set score_type = get_score_type(dataset=task.active_dataset, participation=participation) %}
 {% set sr = s.get_result(task.active_dataset) or undefined %}
 {% set status = sr.get_status() if sr is defined else SubmissionResult.COMPILING  %}
 <tr data-submission="{{ opaque_id }}" data-status="{{ status }}">

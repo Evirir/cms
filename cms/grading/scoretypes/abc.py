@@ -162,6 +162,21 @@ class ScoreType(metaclass=ABCMeta):
         """
         pass
 
+    def max_scores_with_extra(
+        self, extra_public_testcases: dict[str, bool]
+    ) -> tuple[float, float, list[str]]:
+        """Return max scores including additional per-participation testcases.
+
+        Subclasses that support per-participation testcases should override.
+        The default returns the shared-testcase-only values.
+
+        extra_public_testcases: {codename: public} for this participant's
+            per-participation testcases.
+
+        return: max_score, max_public_score, ranking_headers
+        """
+        return self.max_score, self.max_public_score, self.ranking_headers
+
     @abstractmethod
     def compute_score(
         self, submission_result: SubmissionResult

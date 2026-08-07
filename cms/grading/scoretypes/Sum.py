@@ -112,6 +112,16 @@ class Sum(ScoreTypeAlone):
             score += self.parameters
         return score, public_score, []
 
+    def max_scores_with_extra(self, extra_public_testcases):
+        """See ScoreType.max_scores_with_extra."""
+        score = self.max_score
+        public_score = self.max_public_score
+        for public in extra_public_testcases.values():
+            if public:
+                public_score += self.parameters
+            score += self.parameters
+        return score, public_score, self.ranking_headers
+
     def compute_score(self, submission_result):
         """See ScoreType.compute_score."""
         # Actually, this means it didn't even compile!
