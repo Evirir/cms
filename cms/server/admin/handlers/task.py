@@ -477,8 +477,8 @@ class AddParticipationAttachmentHandler(BaseHandler):
         self.contest = task.contest
 
         attachment = Attachment(
-            filename, digest, task=task,
-            participation_id=participation_id)
+            filename, digest, task=task)
+        attachment.participation_id = participation_id
         self.sql_session.add(attachment)
 
         if self.try_commit():

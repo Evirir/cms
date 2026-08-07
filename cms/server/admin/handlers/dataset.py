@@ -669,7 +669,8 @@ class AddParticipationTestcaseHandler(BaseHandler):
 
         testcase = Testcase(
             codename, public, input_digest, output_digest,
-            dataset=dataset, participation_id=participation_id)
+            dataset=dataset)
+        testcase.participation_id = participation_id
         self.sql_session.add(testcase)
 
         if self.try_commit():
@@ -817,7 +818,8 @@ class AddParticipationTestcasesHandler(BaseHandler):
         for codename, input_digest, output_digest, p_id in entries:
             testcase = Testcase(
                 codename, public, input_digest, output_digest,
-                dataset=dataset, participation_id=p_id)
+                dataset=dataset)
+            testcase.participation_id = p_id
             self.sql_session.add(testcase)
 
         if entries:
