@@ -335,6 +335,16 @@ def enumerate_files(
     queries.append(dataset_q.join(Dataset.testcases)
                    .with_entities(Testcase.output))
 
+    # Per-participation testcases and attachments: join through
+    # participations to get files unique to each participant.
+    participation_q = contest_q.join(Contest.participations)
+    queries.append(participation_q.join(Participation.testcases)
+                   .with_entities(Testcase.input))
+    queries.append(participation_q.join(Participation.testcases)
+                   .with_entities(Testcase.output))
+    queries.append(participation_q.join(Participation.attachments)
+                   .with_entities(Attachment.digest))
+
     if not skip_submissions and not skip_users:
         submission_q = task_q.join(Task.submissions)
         queries.append(submission_q.join(Submission.files)

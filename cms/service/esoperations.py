@@ -30,7 +30,7 @@ from collections.abc import Generator
 from datetime import datetime
 import logging
 
-from sqlalchemy import case, literal
+from sqlalchemy import case, literal, or_
 
 from cms.db import Dataset, Evaluation, Submission, SubmissionResult, \
     Task, Testcase, UserTest, UserTestResult
@@ -199,9 +199,13 @@ def submission_get_operations(
         evaluated_testcase_ids = set(
             evaluation.testcase_id
             for evaluation in submission_result.evaluations)
-        for testcase_codename in dataset.testcases.keys():
-            testcase_id = dataset.testcases[testcase_codename].id
-            if testcase_id not in evaluated_testcase_ids:
+        for testcase_codename, testcase in dataset.testcases.items():
+            # Skip per-participation testcases that don't belong to
+            # this submission's participant.
+            if testcase.participation_id is not None \
+                    and testcase.participation_id != submission.participation_id:
+                continue
+            if testcase.id not in evaluated_testcase_ids:
                 yield ESOperation(ESOperation.EVALUATION,
                                   submission.id,
                                   dataset.id,
@@ -290,7 +294,12 @@ def get_relevant_operations(
                     ESOperation.COMPILATION,
                     submission.id,
                     dataset.id))
-            for codename in dataset.testcases:
+            for codename, testcase in dataset.testcases.items():
+                # Skip per-participation testcases that don't belong
+                # to this submission's participant.
+                if testcase.participation_id is not None \
+                        and testcase.participation_id != submission.participation_id:
+                    continue
                 operations.append(ESOperation(
                     ESOperation.EVALUATION,
                     submission.id,
@@ -386,7 +395,11 @@ def get_submissions_operations(
             contest_filter &
             (FILTER_SUBMISSION_DATASETS_TO_JUDGE) &
             (FILTER_SUBMISSION_RESULTS_TO_EVALUATE) &
-            (Evaluation.id.is_(None)))\
+            (Evaluation.id.is_(None)) &
+            (or_(
+                Testcase.participation_id.is_(None),
+                Testcase.participation_id == Submission.participation_id
+            )))\
         .with_entities(Submission.id, Dataset.id,
                        case([
                            (Dataset.id != Task.active_dataset_id,
