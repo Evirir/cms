@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block core %}
+<div class="core_title">
+  <h1><a href="{{ url("task", task.id) }}">{{ task.title }} ({{ task.name }})</a> - Upload per-participation testcases</h1>
+</div>
+<form enctype="multipart/form-data" action="{{ url("dataset", dataset.id, "testcases", "participation", "add_multiple") }}" method="POST">
+  {{ xsrf_form_html|safe }}
+  <table>
+    <tr>
+      <td>
+        Archive (a zip file containing subdirectories for each participant).
+        Expected structure: <code>{username}/{codename}.in</code> and <code>{username}/{codename}.out</code>.
+      </td>
+      <td>
+        <input type="file" name="archive"/>
+      </td>
+    </tr>
+    <tr>
+      <td>Public</td>
+      <td>
+        <input type="checkbox" name="public">
+      </td>
+    </tr>
+  </table>
+  <input type="submit" value="Upload">
+  <input type="Reset" >
+</form>
+{% endblock core %}

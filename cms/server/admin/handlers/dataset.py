@@ -571,6 +571,265 @@ class DeleteTestcaseHandler(BaseHandler):
         self.write("./%d" % task_id)
 
 
+class AddParticipationTestcaseHandler(BaseHandler):
+    """Add a per-participation testcase to a dataset.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def get(self, dataset_id):
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+        self.contest = task.contest
+
+        self.r_params = self.render_params()
+        self.r_params["task"] = task
+        self.r_params["dataset"] = dataset
+        self.render("add_participation_testcase.html", **self.r_params)
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def post(self, dataset_id):
+        fallback_page = self.url("dataset", dataset_id, "testcases",
+                                 "participation", "add")
+
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+
+        participation_id = int(self.get_argument("participation_id"))
+        participation = self.safe_get_item(Participation, participation_id)
+
+        # Validate participation belongs to this task's contest.
+        if participation.contest_id != task.contest_id:
+            raise tornado.web.HTTPError(404)
+
+        codename = self.get_argument("codename")
+
+        # Validate codename does not conflict with shared testcases.
+        if codename in dataset.testcases:
+            existing = dataset.testcases[codename]
+            if existing.participation_id is None:
+                self.service.add_notification(
+                    make_datetime(),
+                    "Codename conflict",
+                    "A shared testcase with codename %r already exists."
+                    % codename)
+                self.redirect(fallback_page)
+                return
+
+        try:
+            input_ = self.request.files["input"][0]
+            output = self.request.files["output"][0]
+        except KeyError:
+            self.service.add_notification(
+                make_datetime(),
+                "Invalid data",
+                "Please fill both input and output.")
+            self.redirect(fallback_page)
+            return
+
+        public = self.get_argument("public", None) is not None
+        task_name = task.name
+        self.sql_session.close()
+
+        try:
+            input_digest = \
+                self.service.file_cacher.put_file_content(
+                    input_["body"],
+                    "Testcase input for task %s" % task_name)
+            output_digest = \
+                self.service.file_cacher.put_file_content(
+                    output["body"],
+                    "Testcase output for task %s" % task_name)
+        except Exception as error:
+            self.service.add_notification(
+                make_datetime(),
+                "Testcase storage failed",
+                repr(error))
+            self.redirect(fallback_page)
+            return
+
+        self.sql_session = Session()
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+
+        testcase = Testcase(
+            codename, public, input_digest, output_digest,
+            dataset=dataset, participation_id=participation_id)
+        self.sql_session.add(testcase)
+
+        if self.try_commit():
+            self.service.proxy_service.reinitialize()
+            self.redirect(self.url("task", task.id))
+        else:
+            self.redirect(fallback_page)
+
+
+class AddParticipationTestcasesHandler(BaseHandler):
+    """Add several per-participation testcases to a dataset via a zip
+    archive. The archive structure is:
+
+        {username}/{codename}.in
+        {username}/{codename}.out
+
+    where {username} matches a participant's username in the contest.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def get(self, dataset_id):
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+        self.contest = task.contest
+
+        self.r_params = self.render_params()
+        self.r_params["task"] = task
+        self.r_params["dataset"] = dataset
+        self.render("add_participation_testcases.html", **self.r_params)
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def post(self, dataset_id):
+        fallback_page = self.url("dataset", dataset_id, "testcases",
+                                 "participation", "add_multiple")
+
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+
+        try:
+            archive = self.request.files["archive"][0]
+        except KeyError:
+            self.service.add_notification(
+                make_datetime(),
+                "Invalid data",
+                "Please choose tests archive.")
+            self.redirect(fallback_page)
+            return
+
+        public = self.get_argument("public", None) is not None
+
+        # Build username -> participation_id mapping.
+        username_to_p_id = {}
+        for p in task.contest.participations:
+            username_to_p_id[p.user.username] = p.id
+
+        self.sql_session.close()
+
+        fp = io.BytesIO(archive["body"])
+        task_name = task.name
+        errors = []
+        entries = []
+
+        try:
+            with zipfile.ZipFile(fp) as zf:
+                in_files = sorted(
+                    n for n in zf.namelist() if n.endswith('.in'))
+                for in_path in in_files:
+                    # Expected: {username}/{codename}.in
+                    parts = in_path.split('/')
+                    if len(parts) != 2:
+                        errors.append(
+                            "Skipping %s: expected "
+                            "{username}/{codename}.in" % in_path)
+                        continue
+                    username, in_filename = parts
+                    codename_base = in_filename[:-3]  # strip ".in"
+                    out_path = "%s/%s.out" % (username, codename_base)
+
+                    if username not in username_to_p_id:
+                        errors.append(
+                            "Unknown username %r for %s"
+                            % (username, in_path))
+                        continue
+
+                    if out_path not in zf.namelist():
+                        errors.append(
+                            "Missing output file %s" % out_path)
+                        continue
+
+                    p_id = username_to_p_id[username]
+
+                    # Check codename doesn't conflict with shared testcases.
+                    if codename_base in dataset.testcases:
+                        existing = dataset.testcases[codename_base]
+                        if existing.participation_id is None:
+                            errors.append(
+                                "Codename %r conflicts with shared testcase"
+                                % codename_base)
+                            continue
+
+                    try:
+                        input_digest = \
+                            self.service.file_cacher.put_file_content(
+                                zf.read(in_path),
+                                "Testcase input for task %s" % task_name)
+                        output_digest = \
+                            self.service.file_cacher.put_file_content(
+                                zf.read(out_path),
+                                "Testcase output for task %s" % task_name)
+                    except Exception as error:
+                        errors.append(
+                            "Storage failed for %s: %s"
+                            % (in_path, repr(error)))
+                        continue
+
+                    entries.append(
+                        (codename_base, input_digest, output_digest, p_id))
+
+        except Exception as error:
+            self.service.add_notification(
+                make_datetime(), str(error), repr(error))
+            self.redirect(fallback_page)
+            return
+
+        self.sql_session = Session()
+        dataset = self.safe_get_item(Dataset, dataset_id)
+        task = dataset.task
+
+        for codename, input_digest, output_digest, p_id in entries:
+            testcase = Testcase(
+                codename, public, input_digest, output_digest,
+                dataset=dataset, participation_id=p_id)
+            self.sql_session.add(testcase)
+
+        if entries:
+            self.service.add_notification(
+                make_datetime(),
+                "Added %d per-participation testcases." % len(entries),
+                "\n".join(errors) if errors else "")
+            self.service.proxy_service.reinitialize()
+        elif errors:
+            self.service.add_notification(
+                make_datetime(),
+                "No testcases added.",
+                "\n".join(errors))
+
+        if self.try_commit() or not entries:
+            self.redirect(self.url("task", task.id))
+        else:
+            self.redirect(fallback_page)
+
+
+class DeleteParticipationTestcaseHandler(BaseHandler):
+    """Delete a per-participation testcase.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def delete(self, dataset_id, testcase_id, participation_id):
+        testcase = self.safe_get_item(Testcase, testcase_id)
+        dataset = self.safe_get_item(Dataset, dataset_id)
+
+        # Protect against URLs providing incompatible parameters.
+        if dataset is not testcase.dataset:
+            raise tornado.web.HTTPError(404)
+        if testcase.participation_id != int(participation_id):
+            raise tornado.web.HTTPError(404)
+
+        task_id = testcase.dataset.task_id
+
+        self.sql_session.delete(testcase)
+
+        if self.try_commit():
+            self.service.proxy_service.reinitialize()
+        self.write("./%d" % task_id)
+
+
 class DownloadTestcasesHandler(BaseHandler):
     """Download all testcases in a zip file.
 
