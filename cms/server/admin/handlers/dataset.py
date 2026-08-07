@@ -579,6 +579,14 @@ class AddParticipationTestcaseHandler(BaseHandler):
     def get(self, dataset_id):
         dataset = self.safe_get_item(Dataset, dataset_id)
         task = dataset.task
+        if task.contest is None:
+            self.service.add_notification(
+                make_datetime(),
+                "Task not in contest",
+                "Per-participation testcases require the task to be "
+                "assigned to a contest.")
+            self.redirect(self.url("task", task.id))
+            return
         self.contest = task.contest
 
         self.r_params = self.render_params()
@@ -593,6 +601,14 @@ class AddParticipationTestcaseHandler(BaseHandler):
 
         dataset = self.safe_get_item(Dataset, dataset_id)
         task = dataset.task
+        if task.contest is None:
+            self.service.add_notification(
+                make_datetime(),
+                "Task not in contest",
+                "Per-participation testcases require the task to be "
+                "assigned to a contest.")
+            self.redirect(self.url("task", task.id))
+            return
 
         participation_id = int(self.get_argument("participation_id"))
         participation = self.safe_get_item(Participation, participation_id)
@@ -677,6 +693,14 @@ class AddParticipationTestcasesHandler(BaseHandler):
     def get(self, dataset_id):
         dataset = self.safe_get_item(Dataset, dataset_id)
         task = dataset.task
+        if task.contest is None:
+            self.service.add_notification(
+                make_datetime(),
+                "Task not in contest",
+                "Per-participation testcases require the task to be "
+                "assigned to a contest.")
+            self.redirect(self.url("task", task.id))
+            return
         self.contest = task.contest
 
         self.r_params = self.render_params()
@@ -691,6 +715,14 @@ class AddParticipationTestcasesHandler(BaseHandler):
 
         dataset = self.safe_get_item(Dataset, dataset_id)
         task = dataset.task
+        if task.contest is None:
+            self.service.add_notification(
+                make_datetime(),
+                "Task not in contest",
+                "Per-participation testcases require the task to be "
+                "assigned to a contest.")
+            self.redirect(self.url("task", task.id))
+            return
 
         try:
             archive = self.request.files["archive"][0]

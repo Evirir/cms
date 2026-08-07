@@ -406,6 +406,14 @@ class AddParticipationAttachmentHandler(BaseHandler):
     @require_permission(BaseHandler.PERMISSION_ALL)
     def get(self, task_id):
         task = self.safe_get_item(Task, task_id)
+        if task.contest is None:
+            self.service.add_notification(
+                make_datetime(),
+                "Task not in contest",
+                "Per-participation attachments require the task to be "
+                "assigned to a contest.")
+            self.redirect(self.url("task", task_id))
+            return
         self.contest = task.contest
 
         self.r_params = self.render_params()
@@ -418,6 +426,14 @@ class AddParticipationAttachmentHandler(BaseHandler):
                                  "participation", "add")
 
         task = self.safe_get_item(Task, task_id)
+        if task.contest is None:
+            self.service.add_notification(
+                make_datetime(),
+                "Task not in contest",
+                "Per-participation attachments require the task to be "
+                "assigned to a contest.")
+            self.redirect(self.url("task", task_id))
+            return
         self.contest = task.contest
 
         participation_id = int(self.get_argument("participation_id"))
