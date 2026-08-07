@@ -61,9 +61,8 @@ class TaskDescriptionHandler(ContestHandler):
             raise tornado.web.HTTPError(404)
 
         # Collect per-participation attachments for this task.
-        participation = self.current_user.participation
         participation_attachments = sorted(
-            [att for att in participation.attachments
+            [att for att in self.current_user.attachments
              if att.task_id == task.id],
             key=lambda a: a.filename
         )
@@ -115,8 +114,7 @@ class TaskAttachmentViewHandler(FileHandler):
         if filename in task.attachments:
             digest = task.attachments[filename].digest
         else:
-            participation = self.current_user.participation
-            for att in participation.attachments:
+            for att in self.current_user.attachments:
                 if att.task_id == task.id and att.filename == filename:
                     digest = att.digest
                     break
