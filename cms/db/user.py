@@ -42,7 +42,7 @@ from cmscommon.crypto import generate_random_password, build_password
 from . import CastingArray, Codename, Base, Admin, Contest
 import typing
 if typing.TYPE_CHECKING:
-    from . import Submission, UserTest
+    from . import Submission, UserTest, Testcase, Attachment
 
 
 class Group(Base):
@@ -383,6 +383,18 @@ class Participation(Base):
 
     user_tests: list["UserTest"] = relationship(
         "UserTest",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="participation")
+
+    testcases: list["Testcase"] = relationship(
+        "Testcase",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="participation")
+
+    attachments: list["Attachment"] = relationship(
+        "Attachment",
         cascade="all, delete-orphan",
         passive_deletes=True,
         back_populates="participation")

@@ -31,8 +31,9 @@ from datetime import timedelta
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.collections import attribute_mapped_collection
-from sqlalchemy.schema import Column, ForeignKey, CheckConstraint, \
+from sqlalchemy.schema import Column, ForeignKey, Index, CheckConstraint, \
     UniqueConstraint, ForeignKeyConstraint
+from sqlalchemy.sql import text
 from sqlalchemy.types import Boolean, Integer, Float, String, Unicode, \
     Interval, Enum, BigInteger
 
@@ -256,7 +257,9 @@ class Task(Base):
         collection_class=attribute_mapped_collection("filename"),
         cascade="all, delete-orphan",
         passive_deletes=True,
-        back_populates="task")
+        back_populates="task",
+        primaryjoin="and_(Task.id == Attachment.task_id, "
+                    "Attachment.participation_id.is_(None))")
 
     datasets: list["Dataset"] = relationship(
         "Dataset",
@@ -342,7 +345,10 @@ class Attachment(Base):
     """
     __tablename__ = 'attachments'
     __table_args__ = (
-        UniqueConstraint('task_id', 'filename'),
+        UniqueConstraint('task_id', 'filename', 'participation_id'),
+        Index('ix_attachments_shared_unique', 'task_id', 'filename',
+              unique=True,
+              postgresql_where=text('participation_id IS NULL')),
     )
 
     # Auto increment primary key.
@@ -359,6 +365,18 @@ class Attachment(Base):
         index=True)
     task: Task = relationship(
         Task,
+        back_populates="attachments")
+
+    # Participation (id and object) owning the attachment, or None if
+    # this attachment is shared across all participants.
+    participation_id: int | None = Column(
+        Integer,
+        ForeignKey('participations.id',
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=True,
+        index=True)
+    participation: "Participation | None" = relationship(
+        "Participation",
         back_populates="attachments")
 
     # Filename and digest of the provided attachment.
@@ -601,7 +619,10 @@ class Testcase(Base):
     """
     __tablename__ = 'testcases'
     __table_args__ = (
-        UniqueConstraint('dataset_id', 'codename'),
+        UniqueConstraint('dataset_id', 'codename', 'participation_id'),
+        Index('ix_testcases_shared_unique', 'dataset_id', 'codename',
+              unique=True,
+              postgresql_where=text('participation_id IS NULL')),
     )
 
     # Auto increment primary key.
@@ -618,6 +639,18 @@ class Testcase(Base):
         index=True)
     dataset: Dataset = relationship(
         Dataset,
+        back_populates="testcases")
+
+    # Participation (id and object) owning the testcase, or None if
+    # this testcase is shared across all participants.
+    participation_id: int | None = Column(
+        Integer,
+        ForeignKey('participations.id',
+                   onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=True,
+        index=True)
+    participation: "Participation | None" = relationship(
+        "Participation",
         back_populates="testcases")
 
     # Codename identifying the testcase.
