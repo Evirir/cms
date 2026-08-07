@@ -128,6 +128,11 @@ class Sum(ScoreTypeAlone):
         public_score = 0.0
 
         for idx in indices:
+            if idx not in evaluations:
+                # Per-participation testcase not for this submission, or
+                # evaluation not yet generated (testcase added after submit).
+                public_testcases.append({"idx": idx})
+                continue
             this_score = float(evaluations[idx].outcome) * self.parameters
             tc_outcome = self.get_public_outcome(this_score)
             score += this_score
