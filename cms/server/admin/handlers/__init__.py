@@ -57,17 +57,20 @@ from .contestuser import \
     ParticipationHandler, \
     MessageHandler
 from .dataset import \
+    AddParticipationTestcaseHandler, \
+    AddParticipationTestcasesHandler, \
     DatasetSubmissionsHandler, \
     CloneDatasetHandler, \
-    RenameDatasetHandler, \
     DeleteDatasetHandler, \
+    DeleteParticipationTestcaseHandler, \
+    DeleteTestcaseHandler, \
+    RenameDatasetHandler, \
     ActivateDatasetHandler, \
     ToggleAutojudgeDatasetHandler, \
     AddManagerHandler, \
     DeleteManagerHandler, \
     AddTestcaseHandler, \
     AddTestcasesHandler, \
-    DeleteTestcaseHandler, \
     DownloadTestcasesHandler
 from .main import \
     LoginHandler, \
@@ -89,6 +92,8 @@ from .task import \
     StatementHandler, \
     AddAttachmentHandler, \
     AttachmentHandler, \
+    AddParticipationAttachmentHandler, \
+    ParticipationAttachmentHandler, \
     TaskListHandler, \
     RemoveTaskHandler
 from .user import \
@@ -183,7 +188,11 @@ HANDLERS = [
     (r"/task/([0-9]+)/statements/add", AddStatementHandler),
     (r"/task/([0-9]+)/statement/([0-9]+)", StatementHandler),
     (r"/task/([0-9]+)/attachments/add", AddAttachmentHandler),
+    (r"/task/([0-9]+)/attachments/participation/add",
+        AddParticipationAttachmentHandler),
     (r"/task/([0-9]+)/attachment/([0-9]+)", AttachmentHandler),
+    (r"/task/([0-9]+)/attachment/([0-9]+)/participation/([0-9]+)",
+        ParticipationAttachmentHandler),
 
     # Datasets
 
@@ -197,7 +206,13 @@ HANDLERS = [
     (r"/dataset/([0-9]+)/manager/([0-9]+)/delete", DeleteManagerHandler),
     (r"/dataset/([0-9]+)/testcases/add", AddTestcaseHandler),
     (r"/dataset/([0-9]+)/testcases/add_multiple", AddTestcasesHandler),
+    (r"/dataset/([0-9]+)/testcases/participation/add",
+        AddParticipationTestcaseHandler),
+    (r"/dataset/([0-9]+)/testcases/participation/add_multiple",
+        AddParticipationTestcasesHandler),
     (r"/dataset/([0-9]+)/testcase/([0-9]+)/delete", DeleteTestcaseHandler),
+    (r"/dataset/([0-9]+)/testcase/([0-9]+)/participation/([0-9]+)/delete",
+        DeleteParticipationTestcaseHandler),
     (r"/dataset/([0-9]+)/testcases/download", DownloadTestcasesHandler),
 
     # Users/Teams
