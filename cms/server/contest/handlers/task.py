@@ -60,7 +60,16 @@ class TaskDescriptionHandler(ContestHandler):
         if task is None:
             raise tornado.web.HTTPError(404)
 
-        self.render("task_description.html", task=task, **self.r_params)
+        # Collect per-participation attachments for this task.
+        participation = self.current_user.participation
+        participation_attachments = sorted(
+            [att for att in participation.attachments
+             if att.task_id == task.id],
+            key=lambda a: a.filename
+        )
+        self.render("task_description.html", task=task,
+                    participation_attachments=participation_attachments,
+                    **self.r_params)
 
 
 class TaskStatementViewHandler(FileHandler):
@@ -101,14 +110,24 @@ class TaskAttachmentViewHandler(FileHandler):
         if task is None:
             raise tornado.web.HTTPError(404)
 
-        if filename not in task.attachments:
+        # Check shared attachments first, then per-participation ones.
+        digest = None
+        if filename in task.attachments:
+            digest = task.attachments[filename].digest
+        else:
+            participation = self.current_user.participation
+            for att in participation.attachments:
+                if att.task_id == task.id and att.filename == filename:
+                    digest = att.digest
+                    break
+
+        if digest is None:
             raise tornado.web.HTTPError(404)
 
-        attachment = task.attachments[filename].digest
         self.sql_session.close()
 
         mimetype = get_type_for_file_name(filename)
         if mimetype is None:
             mimetype = 'application/octet-stream'
 
-        self.fetch(attachment, mimetype, filename)
+        self.fetch(digest, mimetype, filename)
