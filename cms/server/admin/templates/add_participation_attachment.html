@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block core %}
+<div class="core_title">
+  <h1><a href="{{ url("task", task.id) }}">{{ task.title }} ({{ task.name }})</a> - Upload per-participation attachment</h1>
+</div>
+<form enctype="multipart/form-data" action="{{ url("task", task.id, "attachments", "participation", "add") }}" method="POST">
+  {{ xsrf_form_html|safe }}
+  <table>
+    <tr>
+      <td>Participant:</td>
+      <td>
+        <select name="participation_id">
+{% for p in task.contest.participations %}
+          <option value="{{ p.id }}">{{ p.user.username }}</option>
+{% endfor %}
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <td>Attachment:</td>
+      <td>
+        <input type="file" name="attachment"/>
+      </td>
+    </tr>
+  </table>
+  <input type="submit" value="Upload">
+  <input type="Reset" >
+</form>
+{% endblock core %}

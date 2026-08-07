@@ -39,7 +39,8 @@ except:
 
 import tornado.web
 
-from cms.db import Attachment, Dataset, Session, Statement, Submission, Task
+from cms.db import Attachment, Dataset, Participation, Session, Statement, \
+    Submission, Task
 from cmscommon.datetime import make_datetime
 from .base import BaseHandler, SimpleHandler, require_permission
 
@@ -119,6 +120,21 @@ class TaskHandler(BaseHandler):
             self.sql_session.query(Submission)\
                 .join(Task).filter(Task.id == task_id)\
                 .order_by(Submission.timestamp.desc()).all()
+
+        # Build participation_id -> username lookup for testcases table.
+        participation_map = {}
+        participation_attachments = []
+        if task.contest is not None:
+            for p in task.contest.participations:
+                participation_map[p.id] = p.user.username
+                for a in p.attachments:
+                    if a.task_id == task.id:
+                        participation_attachments.append(
+                            (p.user.username, a))
+        participation_attachments.sort(key=lambda x: x[1].filename)
+        self.r_params["participation_map"] = participation_map
+        self.r_params["participation_attachments"] = participation_attachments
+
         self.render("task.html", **self.r_params)
 
     @require_permission(BaseHandler.PERMISSION_ALL)
@@ -374,6 +390,100 @@ class AttachmentHandler(BaseHandler):
 
         # Protect against URLs providing incompatible parameters.
         if attachment.task is not task:
+            raise tornado.web.HTTPError(404)
+
+        self.sql_session.delete(attachment)
+        self.try_commit()
+
+        # Page to redirect to.
+        self.write("%s" % task.id)
+
+
+class AddParticipationAttachmentHandler(BaseHandler):
+    """Add a per-participation attachment to a task.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def get(self, task_id):
+        task = self.safe_get_item(Task, task_id)
+        self.contest = task.contest
+
+        self.r_params = self.render_params()
+        self.r_params["task"] = task
+        self.render("add_participation_attachment.html", **self.r_params)
+
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def post(self, task_id):
+        fallback_page = self.url("task", task_id, "attachments",
+                                 "participation", "add")
+
+        task = self.safe_get_item(Task, task_id)
+        self.contest = task.contest
+
+        participation_id = int(self.get_argument("participation_id"))
+        participation = self.safe_get_item(Participation, participation_id)
+
+        # Validate participation belongs to this task's contest.
+        if participation.contest_id != task.contest_id:
+            raise tornado.web.HTTPError(404)
+
+        attachment = self.request.files["attachment"][0]
+        filename = attachment["filename"]
+
+        # Validate filename doesn't conflict with shared attachments.
+        if filename in task.attachments:
+            self.service.add_notification(
+                make_datetime(),
+                "Filename conflict",
+                "A shared attachment with filename %r already exists."
+                % filename)
+            self.redirect(fallback_page)
+            return
+
+        task_name = task.name
+        self.sql_session.close()
+
+        try:
+            digest = self.service.file_cacher.put_file_content(
+                attachment["body"],
+                "Per-participation attachment for task %s by %s"
+                % (task_name, participation.user.username))
+        except Exception as error:
+            self.service.add_notification(
+                make_datetime(),
+                "Attachment storage failed",
+                repr(error))
+            self.redirect(fallback_page)
+            return
+
+        self.sql_session = Session()
+        task = self.safe_get_item(Task, task_id)
+        self.contest = task.contest
+
+        attachment = Attachment(
+            filename, digest, task=task,
+            participation_id=participation_id)
+        self.sql_session.add(attachment)
+
+        if self.try_commit():
+            self.redirect(self.url("task", task_id))
+        else:
+            self.redirect(fallback_page)
+
+
+class ParticipationAttachmentHandler(BaseHandler):
+    """Delete a per-participation attachment.
+
+    """
+    @require_permission(BaseHandler.PERMISSION_ALL)
+    def delete(self, task_id, attachment_id, participation_id):
+        attachment = self.safe_get_item(Attachment, attachment_id)
+        task = self.safe_get_item(Task, task_id)
+
+        # Protect against URLs providing incompatible parameters.
+        if attachment.task is not task:
+            raise tornado.web.HTTPError(404)
+        if attachment.participation_id != int(participation_id):
             raise tornado.web.HTTPError(404)
 
         self.sql_session.delete(attachment)
