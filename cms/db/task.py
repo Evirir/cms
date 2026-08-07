@@ -508,7 +508,8 @@ class Dataset(Base):
     @property
     def score_type_object(self) -> "ScoreType":
         public_testcases = {k: tc.public
-                            for k, tc in self.testcases.items()}
+                            for k, tc in self.testcases.items()
+                            if tc.participation_id is None}
         if not hasattr(self, "_cached_score_type_object") \
                 or self.score_type != self._cached_score_type \
                 or (self.score_type_parameters

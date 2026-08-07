@@ -129,8 +129,8 @@ class Sum(ScoreTypeAlone):
 
         for idx in indices:
             if idx not in evaluations:
-                # Per-participation testcase not for this submission, or
-                # evaluation not yet generated (testcase added after submit).
+                # Evaluation not yet generated (e.g. testcase added
+                # after submission).
                 public_testcases.append({"idx": idx})
                 continue
             this_score = float(evaluations[idx].outcome) * self.parameters
@@ -144,6 +144,27 @@ class Sum(ScoreTypeAlone):
                 "memory": evaluations[idx].execution_memory,
                 })
             if self.public_testcases[idx]:
+                public_score += this_score
+                public_testcases.append(testcases[-1])
+            else:
+                public_testcases.append({"idx": idx})
+
+        # Process per-participation testcases: evaluations with
+        # codenames not in the shared public_testcases set.
+        extra_indices = sorted(set(evaluations.keys()) - set(indices))
+        for idx in extra_indices:
+            tc_public = evaluations[idx].testcase.public
+            this_score = float(evaluations[idx].outcome) * self.parameters
+            tc_outcome = self.get_public_outcome(this_score)
+            score += this_score
+            testcases.append({
+                "idx": idx,
+                "outcome": tc_outcome,
+                "text": evaluations[idx].text,
+                "time": evaluations[idx].execution_time,
+                "memory": evaluations[idx].execution_memory,
+                })
+            if tc_public:
                 public_score += this_score
                 public_testcases.append(testcases[-1])
             else:
