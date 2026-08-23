@@ -68,6 +68,8 @@ then s1 will be judged using f1 and f2; s2 will be judged using f1, f2' and f3; 
 
 Each testcase can have its own limit on the number of submissions, which you can set on the task's page in AdminWebServer, next to the testcase. It counts only the submissions in which the contestant actually sent in the output for that testcase, so files filled in automatically from the previous submission don't consume it. Once a testcase is exhausted, submissions that include its output are rejected (the ones that don't include it are still accepted), unless the contestant is unrestricted. This is in addition to the per-task and per-contest limits described in :doc:`Configuring a contest`.
 
+ContestWebServer shows one upload form per testcase, each with its own submit button and its own remaining count, so that contestants send in a single testcase at a time; the outputs of the other testcases are carried over from the previous submission and don't consume their limits.
+
 OutputOnly has one parameter, that specifies whether to compare correct output and contestant-produced output with :ref:`white-diff<tasktypes_white_diff>`, or using a :ref:`comparator<tasktypes_checker>` (exactly the same as the third parameter for Batch). In the latter case, the admins must provide an executable manager called :file:`checker`.
 
 
