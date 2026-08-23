@@ -39,7 +39,8 @@ from sqlalchemy.types import Boolean, Integer, Float, String, Unicode, \
 from cms import TOKEN_MODE_DISABLED, TOKEN_MODE_FINITE, TOKEN_MODE_INFINITE, \
     FEEDBACK_LEVEL_FULL, FEEDBACK_LEVEL_RESTRICTED, FEEDBACK_LEVEL_OI_RESTRICTED
 from cmscommon.constants import \
-    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TOKENED_LAST
+    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TESTCASE, \
+    SCORE_MODE_MAX_TOKENED_LAST
 from . import Codename, Filename, FilenameSchemaArray, Digest, Base, Contest
 
 import typing
@@ -224,9 +225,22 @@ class Task(Base):
         Enum(SCORE_MODE_MAX_TOKENED_LAST,
              SCORE_MODE_MAX,
              SCORE_MODE_MAX_SUBTASK,
+             SCORE_MODE_MAX_TESTCASE,
              name="score_mode"),
         nullable=False,
         default=SCORE_MODE_MAX_TOKENED_LAST)
+
+    # Whether each file of the submission format is submitted on its own,
+    # rather than together with the others. When this is set the files that
+    # the contestant doesn't send in are not inherited from the previous
+    # submission, so each submission covers a single testcase; the score
+    # mode should then be "max_testcase". Only meaningful for task types
+    # whose submission format has one file per testcase (that is, output
+    # only ones).
+    independent_testcase_submissions: bool = Column(
+        Boolean,
+        nullable=False,
+        default=False)
 
     # Active Dataset (id and object) currently being used for scoring.
     # The ForeignKeyConstraint for this column is set at table-level.

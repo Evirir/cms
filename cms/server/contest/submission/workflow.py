@@ -212,7 +212,8 @@ def accept_submission(
     missing_codenames = required_codenames.difference(files.keys())
     if len(missing_codenames) > 0:
         if task.active_dataset.task_type_object.ALLOW_PARTIAL_SUBMISSION:
-            if task.active_dataset.task_type_object.REUSE_PREVIOUS_SUBMISSION:
+            if task.active_dataset.task_type_object.REUSE_PREVIOUS_SUBMISSION \
+                    and not task.independent_testcase_submissions:
                 digests = fetch_file_digests_from_previous_submission(
                     sql_session, participation, task, language,
                     missing_codenames)

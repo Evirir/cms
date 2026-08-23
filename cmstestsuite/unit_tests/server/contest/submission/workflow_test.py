@@ -305,6 +305,35 @@ class TestAcceptSubmission(DatabaseMixin, unittest.TestCase):
 
         self.check_max_number_for_file.assert_not_called()
 
+    def test_success_independent_testcase_submissions(self):
+        # In independent mode the outputs that the contestant doesn't send in
+        # are not inherited from the previous submission, so each submission
+        # covers a single testcase.
+        self.set_up_output_only_task(None)
+        self.task.independent_testcase_submissions = True
+        self.digests = {"output_tc2.txt": bytes_digest(BAR_CONTENT)}
+
+        submission = self.call()
+
+        self.assertSubmissionIsValid(
+            submission, self.timestamp, None,
+            {"output_tc1.txt": FOO_CONTENT}, True)
+        self.assertCountEqual(
+            submission.uploaded_filenames, ["output_tc1.txt"])
+        self.fetch_file_digests_from_previous_submission.assert_not_called()
+
+    def test_failure_due_to_max_number_on_testcase_independent(self):
+        # Each testcase keeps its own limit in independent mode.
+        self.set_up_output_only_task(3)
+        self.task.independent_testcase_submissions = True
+        self.check_max_number_for_file.return_value = False
+
+        with self.assertRaisesRegex(UnacceptableSubmission, "output_tc1.txt"):
+            self.call()
+
+        self.check_max_number_for_file.assert_called_with(
+            self.session, 3, self.participation, self.task, "output_tc1.txt")
+
     def test_failure_due_to_min_interval_on_contest(self):
         min_interval = timedelta(seconds=unique_long_id())
         self.contest.min_submission_interval = min_interval

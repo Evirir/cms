@@ -40,7 +40,8 @@ from cms.grading import format_status_text
 from cms.grading.languagemanager import get_language, safe_get_lang_filename
 from cms.locale import Translation, DEFAULT_TRANSLATION
 from cmscommon.constants import \
-    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TOKENED_LAST
+    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TESTCASE, \
+    SCORE_MODE_MAX_TOKENED_LAST
 from cmscommon.datetime import make_datetime, make_timestamp, utc, local_tz
 from cmscommon.mimetypes import get_type_for_file_name, get_icon_for_type
 
@@ -163,6 +164,7 @@ def instrument_generic_toolbox(env: Environment):
     env.globals["SCORE_MODE_MAX_TOKENED_LAST"] = SCORE_MODE_MAX_TOKENED_LAST
     env.globals["SCORE_MODE_MAX"] = SCORE_MODE_MAX
     env.globals["SCORE_MODE_MAX_SUBTASK"] = SCORE_MODE_MAX_SUBTASK
+    env.globals["SCORE_MODE_MAX_TESTCASE"] = SCORE_MODE_MAX_TESTCASE
 
     env.globals["TOKEN_MODE_DISABLED"] = TOKEN_MODE_DISABLED
     env.globals["TOKEN_MODE_FINITE"] = TOKEN_MODE_FINITE

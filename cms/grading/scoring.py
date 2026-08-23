@@ -29,7 +29,8 @@ from sqlalchemy.orm import joinedload
 
 from cms.db import Submission, Dataset, Participation, Task
 from cmscommon.constants import \
-    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TOKENED_LAST
+    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TESTCASE, \
+    SCORE_MODE_MAX_TOKENED_LAST
 
 
 __all__ = [
@@ -171,6 +172,8 @@ def task_score(
         score = _task_score_max(score_details_tokened)
     elif task.score_mode == SCORE_MODE_MAX_SUBTASK:
         score = _task_score_max_subtask(score_details_tokened)
+    elif task.score_mode == SCORE_MODE_MAX_TESTCASE:
+        score = _task_score_max_testcase(score_details_tokened)
     elif task.score_mode == SCORE_MODE_MAX_TOKENED_LAST:
         score = _task_score_max_tokened_last(score_details_tokened)
     else:
@@ -264,6 +267,91 @@ def _task_score_max_subtask(
 
         for idx, score in subtask_scores.items():
             max_scores[idx] = max(max_scores.get(idx, 0.0), score)
+
+    return sum(max_scores.values())
+
+
+def _testcase_scores(details: object) -> dict[str, float] | None:
+    """Extract the score of each testcase from the score details.
+
+    Support both the details of ScoreTypeGroup (a list of subtasks, each
+    with the testcases it contains) and the flat ones of the score types
+    that don't have subtasks (a list of testcases). A subtask holding more
+    than one testcase is reported as a single unit, keyed by its index, as
+    its score cannot be split among its testcases.
+
+    details: the score details of a submission.
+
+    return: the score of each testcase, or None if the details don't have
+        the expected shape.
+
+    """
+    if not isinstance(details, list):
+        return None
+
+    scores: dict[str, float] = {}
+    for entry in details:
+        if not isinstance(entry, dict) or "idx" not in entry:
+            return None
+        if "testcases" in entry and "score" in entry:
+            testcases = entry["testcases"]
+            if len(testcases) == 1:
+                key = "testcase %s" % testcases[0]["idx"]
+            else:
+                key = "subtask %s" % entry["idx"]
+            score = entry["score"]
+        elif "testcase_score" in entry:
+            # A flat list of testcases (the score type has no subtasks).
+            key = "testcase %s" % entry["idx"]
+            score = entry["testcase_score"]
+        else:
+            return None
+        scores[key] = max(scores.get(key, 0.0), float(score))
+    return scores
+
+
+def _task_score_max_testcase(
+    score_details_tokened: list[tuple[float | None, object | None, bool]],
+) -> float:
+    """Compute score using the "max testcase" score mode.
+
+    The score of a participant on a task is the sum, over the testcases, of
+    the maximum score amongst all submissions for that testcase (not yet
+    computed scores count as 0.0). This is meant for output only tasks in
+    which each testcase is submitted on its own, so that a submission that
+    covers a single testcase doesn't throw away the score of the others.
+
+    Testcases that the score type groups into a subtask together are scored
+    as a single unit, as their scores cannot be told apart. If the score type
+    doesn't report the score of each testcase at all, the score mode works as
+    if the task had a single testcase.
+
+    score_details_tokened: a tuple for each submission of the user in the task,
+        containing score, score details (each None if not scored yet) and if
+        the submission was tokened.
+
+    return: the score.
+
+    """
+    # Maximum score for each testcase (not yet computed scores count as 0.0).
+    max_scores: dict[str, float] = {}
+
+    for score, details, _ in score_details_tokened:
+        if score is None:
+            continue
+
+        if details == [] and score == 0.0:
+            # Submission did not compile, ignore it.
+            continue
+
+        testcase_scores = _testcase_scores(details)
+        if testcase_scores is None or len(testcase_scores) == 0:
+            # The score type doesn't report the score of each testcase,
+            # so the whole submission is the only unit we can score.
+            testcase_scores = {"unit": score}
+
+        for key, testcase_score in testcase_scores.items():
+            max_scores[key] = max(max_scores.get(key, 0.0), testcase_score)
 
     return sum(max_scores.values())
 

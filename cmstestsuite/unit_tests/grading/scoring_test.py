@@ -27,7 +27,8 @@ from cmstestsuite.unit_tests.databasemixin import DatabaseMixin
 
 from cms.grading.scoring import task_score
 from cmscommon.constants import \
-    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TOKENED_LAST
+    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TESTCASE, \
+    SCORE_MODE_MAX_TOKENED_LAST
 from cmscommon.datetime import make_datetime
 
 
@@ -297,6 +298,144 @@ class TestTaskScoreMaxSubtask(TaskScoreMixin, unittest.TestCase):
         self.session.flush()
         self.assertEqual(self.call(only_tokened=True),
                          (30 * 0.2 + 40 * 0.5 + 30 * 0.2, False))
+
+
+class TestTaskScoreMaxTestcase(TaskScoreMixin, unittest.TestCase):
+    """Tests for task_score() using the max_testcase score mode."""
+
+    def setUp(self):
+        super().setUp()
+        self.task.score_mode = SCORE_MODE_MAX_TESTCASE
+
+    @staticmethod
+    def tc(idx, score):
+        """Return an item of score details for a testcase (no subtasks)."""
+        return {
+            "idx": idx,
+            "testcase_score": score,
+            "outcome": "Correct" if score > 0 else "Not correct",
+            "text": [],
+            "time": None,
+            "memory": None,
+        }
+
+    @staticmethod
+    def st(idx, score, testcase_indices):
+        """Return an item of score details for a subtask."""
+        return {
+            "idx": idx,
+            "score": score,
+            "max_score": 100,
+            "score_fraction": 0.0,
+            "testcases": [{"idx": tc_idx} for tc_idx in testcase_indices],
+        }
+
+    def test_no_submissions(self):
+        self.assertEqual(self.call(), (0.0, False))
+
+    def test_details_without_testcase_scores(self):
+        # Without per-testcase scores the whole submission is the only unit.
+        self.add_result(self.at(1), 66.6)
+        self.add_result(self.at(2), 44.4)
+        self.session.flush()
+        self.assertEqual(self.call(), (66.6, False))
+
+    def test_sum_of_best_of_each_testcase(self):
+        self.add_result(self.at(1), 10.0, score_details=[
+            self.tc("1", 10.0),
+            self.tc("2", 0.0),
+        ])
+        self.add_result(self.at(2), 20.0, score_details=[
+            self.tc("1", 0.0),
+            self.tc("2", 20.0),
+        ])
+        self.session.flush()
+        self.assertEqual(self.call(), (30.0, False))
+
+    def test_independent_submissions(self):
+        # A submission that covers a single testcase doesn't throw away the
+        # score of the others.
+        self.add_result(self.at(1), 10.0, score_details=[
+            self.tc("1", 10.0),
+        ])
+        self.add_result(self.at(2), 20.0, score_details=[
+            self.tc("2", 20.0),
+        ])
+        self.session.flush()
+        self.assertEqual(self.call(), (30.0, False))
+
+    def test_best_result_of_a_testcase_is_kept(self):
+        self.add_result(self.at(1), 20.0, score_details=[
+            self.tc("1", 20.0),
+        ])
+        self.add_result(self.at(2), 5.0, score_details=[
+            self.tc("1", 5.0),
+        ])
+        self.session.flush()
+        self.assertEqual(self.call(), (20.0, False))
+
+    def test_single_testcase_subtasks(self):
+        self.add_result(self.at(1), 10.0, score_details=[
+            self.st(1, 10.0, ["1"]),
+            self.st(2, 0.0, ["2"]),
+        ])
+        self.add_result(self.at(2), 20.0, score_details=[
+            self.st(1, 0.0, ["1"]),
+            self.st(2, 20.0, ["2"]),
+        ])
+        self.session.flush()
+        self.assertEqual(self.call(), (30.0, False))
+
+    def test_multi_testcase_subtasks_are_one_unit(self):
+        # The testcases of a subtask cannot be told apart, so the subtask is
+        # scored as a whole.
+        self.add_result(self.at(1), 10.0, score_details=[
+            self.st(1, 10.0, ["1", "2"]),
+        ])
+        self.add_result(self.at(2), 20.0, score_details=[
+            self.st(1, 20.0, ["1", "2"]),
+        ])
+        self.session.flush()
+        self.assertEqual(self.call(), (20.0, False))
+
+    def test_partial(self):
+        self.add_result(self.at(1), 10.0, score_details=[
+            self.tc("1", 10.0),
+        ])
+        self.add_result(self.at(2), None)
+        self.session.flush()
+        self.assertEqual(self.call(), (10.0, True))
+
+    def test_public(self):
+        self.add_result(
+            self.at(1), 30.0,
+            score_details=[self.tc("1", 30.0)],
+            public_score=10.0,
+            public_score_details=[self.tc("1", 10.0)])
+        self.add_result(
+            self.at(2), 40.0,
+            score_details=[self.tc("2", 40.0)],
+            public_score=20.0,
+            public_score_details=[self.tc("2", 20.0)])
+        self.session.flush()
+        self.assertEqual(self.call(public=True), (30.0, False))
+
+    def test_only_tokened(self):
+        self.add_result(self.at(1), 10.0, tokened=True, score_details=[
+            self.tc("1", 10.0),
+        ])
+        self.add_result(self.at(2), 20.0, tokened=False, score_details=[
+            self.tc("2", 20.0),
+        ])
+        self.session.flush()
+        self.assertEqual(self.call(only_tokened=True), (10.0, False))
+
+    def test_rounded(self):
+        self.add_result(self.at(1), 10.005, score_details=[
+            self.tc("1", 10.005),
+        ])
+        self.session.flush()
+        self.assertEqual(self.call(), (10.01, False))
 
 
 class TestTaskScoreMax(TaskScoreMixin, unittest.TestCase):

@@ -21,7 +21,8 @@ Used by DumpImporter and DumpUpdater.
 
 Add Submission.uploaded_filenames, filling it with all the files of the
 submission (we cannot tell which ones were inherited from the previous
-submission), and Testcase.max_submission_number, defaulting to no limit.
+submission), Testcase.max_submission_number, defaulting to no limit, and
+Task.independent_testcase_submissions, defaulting to false.
 
 """
 
@@ -40,5 +41,7 @@ class Updater:
                 v["uploaded_filenames"] = sorted(v.get("files", {}).keys())
             if v["_class"] == "Testcase":
                 v["max_submission_number"] = None
+            if v["_class"] == "Task":
+                v["independent_testcase_submissions"] = False
 
         return self.objs

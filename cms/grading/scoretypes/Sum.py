@@ -133,6 +133,10 @@ class Sum(ScoreTypeAlone):
             score += this_score
             testcases.append({
                 "idx": idx,
+                # Named differently from the "score" of a subtask so that
+                # the "max_subtask" score mode keeps treating this score
+                # type as having a single subtask.
+                "testcase_score": this_score,
                 "outcome": tc_outcome,
                 "text": evaluations[idx].text,
                 "time": evaluations[idx].execution_time,

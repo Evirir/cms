@@ -26,7 +26,8 @@ from itertools import zip_longest
 from typing import Any
 
 from cmscommon.constants import \
-    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TOKENED_LAST
+    SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TESTCASE, \
+    SCORE_MODE_MAX_TOKENED_LAST
 from cmsranking.Store import Store
 from cmsranking.Subchange import Subchange
 from cmsranking.Submission import Submission
@@ -125,7 +126,8 @@ class Score:
             score = max((submission.score
                          for submission in self._submissions.values()),
                         default=0.0)
-        elif self._score_mode == SCORE_MODE_MAX_SUBTASK:
+        elif self._score_mode in (SCORE_MODE_MAX_SUBTASK,
+                                  SCORE_MODE_MAX_TESTCASE):
             scores_by_submission = (map(float, s.extra or [s.score])
                                     for s in self._submissions.values())
             scores_by_subtask = zip_longest(*scores_by_submission,

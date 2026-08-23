@@ -173,6 +173,8 @@ class TaskHandler(BaseHandler):
 
             self.get_string(attrs, "score_mode")
 
+            self.get_bool(attrs, "independent_testcase_submissions")
+
             # Update the task.
             task.set_attrs(attrs)
 

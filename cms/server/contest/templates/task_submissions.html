@@ -244,7 +244,8 @@ $(document).ready(function () {
 <h2 style="margin-bottom: 10px">{% trans %}Submit a solution{% endtrans %}</h2>
 
   {% set task_type = get_task_type(dataset=task.active_dataset) %}
-  {% set per_testcase_submit = task_type.USER_OUTPUT_FILENAME_TEMPLATE is not none %}
+  {% set per_testcase_submit = task_type.USER_OUTPUT_FILENAME_TEMPLATE is not none
+                               and task.independent_testcase_submissions %}
   {% if per_testcase_submit %}
   <p><strong>{% trans %}Each output is submitted on its own, independently of the others.{% endtrans %}</strong></p>
   {% elif task_type.ALLOW_PARTIAL_SUBMISSION %}
@@ -292,7 +293,11 @@ $(document).ready(function () {
             <fieldset>
   {% for filename in task.submission_format %}
                 <div class="control-group">
-                    <label class="control-label" for="input{{ loop.index0 }}">{{ filename|replace(".%l", ": ") }}</label>
+                    <label class="control-label" for="input{{ loop.index0 }}">{{ filename|replace(".%l", ": ") }}
+    {% if filename in submissions_left_per_file %}
+                        <br/><small>{% trans submissions_left=submissions_left_per_file[filename] %}{{ submissions_left }} left{% endtrans %}</small>
+    {% endif %}
+                    </label>
                     <div class="controls">
                         <input type="file" class="input-xlarge"
                                id="input{{ loop.index0 }}" name="{{ filename }}"
@@ -322,7 +327,7 @@ $(document).ready(function () {
         </form>
     </div>
   {% endif %}
-  {% if task.submission_format|length > 1 and not task.submission_format|any("endswith", ".%l") %}
+  {% if not per_testcase_submit and task.submission_format|length > 1 and not task.submission_format|any("endswith", ".%l") %}
     <div class="span4">
         <form class="form-horizontal" enctype="multipart/form-data" action="{{ contest_url("tasks", task.name, "submit") }}" method="POST">
             {{ xsrf_form_html|safe }}

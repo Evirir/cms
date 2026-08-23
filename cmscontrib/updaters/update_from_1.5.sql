@@ -114,4 +114,11 @@ UPDATE submissions SET uploaded_filenames = COALESCE(
      FROM files WHERE files.submission_id = submissions.id), '{}');
 ALTER TABLE submissions ALTER COLUMN uploaded_filenames SET NOT NULL;
 
+-- independent (no inheritance) submissions for output only tasks, scored
+-- with the sum of the best result of each testcase
+ALTER TABLE tasks ADD COLUMN independent_testcase_submissions BOOLEAN;
+UPDATE tasks SET independent_testcase_submissions = false;
+ALTER TABLE tasks ALTER COLUMN independent_testcase_submissions SET NOT NULL;
+ALTER TYPE score_mode ADD VALUE 'max_testcase';
+
 COMMIT;
