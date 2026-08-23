@@ -487,6 +487,24 @@ class Dataset(Base):
                 copy.deepcopy(self.task_type_parameters)
         return self._cached_task_type_object
 
+    def get_max_submission_numbers_per_file(self) -> dict[str, int]:
+        """Return the per-file limits on the number of submissions.
+
+        Map the codename of each file of the submission format that
+        belongs to a testcase having a limit on the number of
+        submissions to that limit. The result is empty for task types
+        whose submission format doesn't have one file per testcase.
+
+        return: the limit, for each limited file.
+
+        """
+        template = self.task_type_object.USER_OUTPUT_FILENAME_TEMPLATE
+        if template is None:
+            return {}
+        return {template % codename: testcase.max_submission_number
+                for codename, testcase in self.testcases.items()
+                if testcase.max_submission_number is not None}
+
     @property
     def score_type_object(self) -> "ScoreType":
         public_testcases = {k: tc.public
@@ -631,6 +649,16 @@ class Testcase(Base):
         Boolean,
         nullable=False,
         default=False)
+
+    # Maximum number of times each user is allowed to send in a file
+    # for this testcase, or None to not enforce this limitation. Only
+    # meaningful for task types whose submission format has one file
+    # per testcase (that is, output only ones).
+    max_submission_number: int | None = Column(
+        Integer,
+        CheckConstraint("max_submission_number > 0",
+                        name="testcases_max_submission_number_check"),
+        nullable=True)
 
     # Digests of the input and output files.
     input: str = Column(

@@ -160,7 +160,8 @@ def add_submission(
             language=language_name,
             participation=participation,
             task=task,
-            opaque_id=Submission.generate_opaque_id(session, participation.id)
+            opaque_id=Submission.generate_opaque_id(session, participation.id),
+            uploaded_filenames=sorted(file_digests.keys()),
         )
         for filename, digest in file_digests.items():
             session.add(File(filename, digest, submission=submission))

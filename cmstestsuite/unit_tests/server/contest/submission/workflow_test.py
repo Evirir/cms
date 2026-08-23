@@ -94,12 +94,19 @@ class TestAcceptSubmission(DatabaseMixin, unittest.TestCase):
         self.task_type = patcher.start().return_value
         self.addCleanup(patcher.stop)
         self.task_type.ALLOW_PARTIAL_SUBMISSION = True
+        self.task_type.USER_OUTPUT_FILENAME_TEMPLATE = None
 
         patcher = patch(
             "cms.server.contest.submission.workflow.check_max_number")
         self.check_max_number = patcher.start()
         self.addCleanup(patcher.stop)
         self.check_max_number.return_value = True
+
+        patcher = patch(
+            "cms.server.contest.submission.workflow.check_max_number_for_file")
+        self.check_max_number_for_file = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.check_max_number_for_file.return_value = True
 
         patcher = patch(
             "cms.server.contest.submission.workflow.check_min_interval")
@@ -187,6 +194,9 @@ class TestAcceptSubmission(DatabaseMixin, unittest.TestCase):
         self.assertSubmissionIsValid(
             submission, self.timestamp, "MockLanguage",
             {"foo.%l": FOO_CONTENT, "bar.%l": BAR_CONTENT}, True)
+        # Only the file sent in by the contestant is recorded as uploaded:
+        # bar.%l comes from the previous submission.
+        self.assertCountEqual(submission.uploaded_filenames, ["foo.%l"])
 
     def test_success_all_languages_allowed(self):
         self.contest.languages = None
@@ -243,6 +253,57 @@ class TestAcceptSubmission(DatabaseMixin, unittest.TestCase):
 
         self.check_max_number.assert_called_with(
             self.session, max_number, self.participation, task=self.task)
+
+    def set_up_output_only_task(self, max_submission_number):
+        """Turn the task into an output only one with two testcases.
+
+        Give the first testcase the given limit on the number of
+        submissions and make the contestant send in its output file
+        only.
+
+        max_submission_number: the limit for the first testcase.
+
+        """
+        self.task_type.USER_OUTPUT_FILENAME_TEMPLATE = "output_%s.txt"
+        self.task.submission_format = ["output_tc1.txt", "output_tc2.txt"]
+        self.add_testcase(dataset=self.dataset, codename="tc1",
+                          max_submission_number=max_submission_number)
+        self.add_testcase(dataset=self.dataset, codename="tc2")
+        self.files = {"output_tc1.txt": FOO_CONTENT}
+        self.language = None
+        self.digests = {}
+
+    def test_failure_due_to_max_number_on_testcase(self):
+        self.set_up_output_only_task(3)
+        self.check_max_number_for_file.return_value = False
+
+        with self.assertRaisesRegex(UnacceptableSubmission, "output_tc1.txt"):
+            self.call()
+
+        self.check_max_number_for_file.assert_called_with(
+            self.session, 3, self.participation, self.task, "output_tc1.txt")
+
+    def test_success_with_max_number_on_inherited_testcase(self):
+        # The file of the exhausted testcase is inherited from the previous
+        # submission rather than sent in, hence the limit doesn't apply.
+        self.set_up_output_only_task(3)
+        self.files = {"output_tc2.txt": FOO_CONTENT}
+        self.digests = {"output_tc1.txt": bytes_digest(BAR_CONTENT)}
+        self.check_max_number_for_file.return_value = False
+
+        submission = self.call()
+
+        self.assertCountEqual(
+            submission.uploaded_filenames, ["output_tc2.txt"])
+        self.check_max_number_for_file.assert_not_called()
+
+    def test_success_with_no_max_number_on_testcase(self):
+        self.set_up_output_only_task(None)
+        self.check_max_number_for_file.return_value = False
+
+        self.call()
+
+        self.check_max_number_for_file.assert_not_called()
 
     def test_failure_due_to_min_interval_on_contest(self):
         min_interval = timedelta(seconds=unique_long_id())

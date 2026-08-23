@@ -108,6 +108,15 @@ class Submission(Base):
         default=True,
     )
 
+    # Codenames of the files that the contestant actually sent in with
+    # this submission. It differs from the keys of files for task types
+    # that reuse the files of the previous submission (i.e., output only
+    # ones): those inherited files appear among files but not here.
+    uploaded_filenames: list[str] = Column(
+        ARRAY(String),
+        nullable=False,
+        default=[])
+
     @property
     def short_comment(self) -> str:
         """The first line of the comment."""

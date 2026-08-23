@@ -48,7 +48,8 @@ from cms.db import (
 )
 from cms.db.filecacher import FileCacher
 from cmscommon.datetime import make_timestamp
-from .check import check_max_number, check_min_interval, is_last_minutes
+from .check import check_max_number, check_max_number_for_file, \
+    check_min_interval, is_last_minutes
 from .file_matching import InvalidFilesOrLanguage, match_files_and_language
 from .file_retrieval import InvalidArchive, extract_files_from_tornado
 from .utils import fetch_file_digests_from_previous_submission, StorageFailed, \
@@ -229,6 +230,25 @@ def accept_submission(
             N_("Each source file must be at most %d bytes long."),
             config.contest_web_server.max_submission_length)
 
+    # Now that we know which files the contestant actually sent in (the
+    # missing ones, if any, are inherited from the previous submission and
+    # thus don't count) we can enforce the per-testcase limits.
+
+    if not override_max_number:
+        max_numbers_per_file = \
+            task.active_dataset.get_max_submission_numbers_per_file()
+        for filename, max_number in max_numbers_per_file.items():
+            if filename not in files:
+                continue
+            if not check_max_number_for_file(
+                    sql_session, max_number, participation, task, filename):
+                raise UnacceptableSubmission(
+                    N_("Too many submissions!"),
+                    N_("You have reached the maximum limit of "
+                       "at most %(max_number)d submissions for the file "
+                       "%(filename)s."),
+                    {"max_number": max_number, "filename": filename})
+
     # All checks done, submission accepted.
 
     if config.contest_web_server.submit_local_copy:
@@ -275,7 +295,8 @@ def accept_submission(
         task=task,
         participation=participation,
         comment=received_filenames_joined,
-        official=official)
+        official=official,
+        uploaded_filenames=sorted(files.keys()))
     sql_session.add(submission)
 
     for codename, digest in digests.items():

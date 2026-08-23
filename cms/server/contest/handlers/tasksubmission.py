@@ -173,6 +173,16 @@ class TaskSubmissionsHandler(ContestHandler):
         if submissions_left is not None:
             submissions_left = max(0, submissions_left)
 
+        # For task types with one file per testcase, the limits (if any)
+        # on the number of submissions of each single file.
+        submissions_left_per_file: dict[str, int] = {}
+        max_numbers_per_file = \
+            task.active_dataset.get_max_submission_numbers_per_file()
+        for filename, max_number in max_numbers_per_file.items():
+            count = sum(1 for s in submissions
+                        if filename in s.uploaded_filenames)
+            submissions_left_per_file[filename] = max(0, max_number - count)
+
         tokens_info = tokens_available(participation, task, self.timestamp)
 
         download_allowed = self.contest.submissions_download_allowed
@@ -184,6 +194,7 @@ class TaskSubmissionsHandler(ContestHandler):
                     tokens_task=task.token_mode,
                     tokens_info=tokens_info,
                     submissions_left=submissions_left,
+                    submissions_left_per_file=submissions_left_per_file,
                     submissions_download_allowed=download_allowed,
                     **self.r_params)
 

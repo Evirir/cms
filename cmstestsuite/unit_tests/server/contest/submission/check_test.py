@@ -24,7 +24,8 @@ from cmstestsuite.unit_tests.databasemixin import DatabaseMixin
 
 from cms.db import UserTest, Submission
 from cms.server.contest.submission import get_submission_count, \
-    check_max_number, get_latest_submission, check_min_interval, is_last_minutes
+    check_max_number, get_file_submission_count, check_max_number_for_file, \
+    get_latest_submission, check_min_interval, is_last_minutes
 from cmscommon.datetime import make_datetime
 
 
@@ -197,6 +198,96 @@ class TestCheckMaxNumber(DatabaseMixin, unittest.TestCase):
         self.assertTrue(self.call(9, task=self.task, cls=UserTest))
         # Having calls signals an inefficiency.
         self.get_submission_count.assert_not_called()
+
+
+class TestGetFileSubmissionCount(DatabaseMixin, unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.contest = self.add_contest()
+        self.task1 = self.add_task(contest=self.contest)
+        self.task2 = self.add_task(contest=self.contest)
+        self.participation = self.add_participation(contest=self.contest)
+
+    def call(self, filename, participation=None, task=None):
+        return get_file_submission_count(
+            self.session, participation or self.participation,
+            task or self.task1, filename)
+
+    def test_count(self):
+        # No submissions.
+        self.assertEqual(self.call("output_1.txt"), 0)
+
+        # A submission that uploaded the file.
+        self.add_submission(task=self.task1,
+                            participation=self.participation,
+                            uploaded_filenames=["output_1.txt"])
+        self.assertEqual(self.call("output_1.txt"), 1)
+
+        # A submission that uploaded other files doesn't count.
+        self.add_submission(task=self.task1,
+                            participation=self.participation,
+                            uploaded_filenames=["output_2.txt"])
+        self.assertEqual(self.call("output_1.txt"), 1)
+        self.assertEqual(self.call("output_2.txt"), 1)
+
+        # Many files in the same submission all count.
+        self.add_submission(
+            task=self.task1, participation=self.participation,
+            uploaded_filenames=["output_1.txt", "output_2.txt"])
+        self.assertEqual(self.call("output_1.txt"), 2)
+        self.assertEqual(self.call("output_2.txt"), 2)
+
+        # Doesn't mix submissions for different tasks.
+        self.assertEqual(self.call("output_1.txt", task=self.task2), 0)
+
+        # Doesn't mix submissions for different users.
+        other_participation = self.add_participation(contest=self.contest)
+        self.assertEqual(
+            self.call("output_1.txt", participation=other_participation), 0)
+
+
+class TestCheckMaxNumberForFile(DatabaseMixin, unittest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+
+        patcher = patch(
+            "cms.server.contest.submission.check.get_file_submission_count")
+        self.get_file_submission_count = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        self.contest = self.add_contest()
+        self.task = self.add_task(contest=self.contest)
+        self.participation = self.add_participation(unrestricted=False,
+                                                    contest=self.contest)
+
+    def call(self, max_number):
+        return check_max_number_for_file(
+            self.session, max_number, self.participation, self.task,
+            "output_1.txt")
+
+    def test_no_limit(self):
+        self.get_file_submission_count.return_value = 5
+        self.assertTrue(self.call(None))
+        # Having calls signals an inefficiency.
+        self.get_file_submission_count.assert_not_called()
+
+    def test_limit(self):
+        self.get_file_submission_count.return_value = 5
+        self.assertFalse(self.call(3))
+        self.assertFalse(self.call(5))
+        self.assertTrue(self.call(6))
+        self.get_file_submission_count.assert_called_with(
+            self.session, self.participation, self.task, "output_1.txt")
+
+    def test_limit_unrestricted(self):
+        # Unrestricted users have no limit enforced.
+        self.participation.unrestricted = True
+        self.get_file_submission_count.return_value = 5
+        self.assertTrue(self.call(1))
+        # Having calls signals an inefficiency.
+        self.get_file_submission_count.assert_not_called()
 
 
 class TestGetLatestSubmission(DatabaseMixin, unittest.TestCase):

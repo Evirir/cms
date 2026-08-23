@@ -142,6 +142,63 @@ def check_max_number(
     return count < max_number
 
 
+def get_file_submission_count(
+    sql_session: Session,
+    participation: Participation,
+    task: Task,
+    filename: str,
+) -> int:
+    """Return how many times the contestant sent in the given file.
+
+    Count the submissions for the given participation on the given task
+    that actually contained a file with the given codename, that is, the
+    ones in which the contestant uploaded it (files inherited from a
+    previous submission are not counted).
+
+    sql_session: the SQLAlchemy session to use.
+    participation: the participation to fetch data for.
+    task: the task to count on.
+    filename: the codename of the file to count.
+
+    return: the count.
+
+    """
+    q = sql_session.query(func.count(Submission.id))
+    q = _filter_submission_query(q, participation, None, task, Submission)
+    q = q.filter(Submission.uploaded_filenames.any(filename))
+    return q.scalar()
+
+
+def check_max_number_for_file(
+    sql_session: Session,
+    max_number: int | None,
+    participation: Participation,
+    task: Task,
+    filename: str,
+) -> bool:
+    """Check whether the given file can be sent in once more.
+
+    Same as check_max_number, but for the constraint on the number of
+    submissions that contain a specific file (which, for output only
+    tasks, means the number of submissions for a single testcase).
+
+    sql_session: the SQLAlchemy session to use.
+    max_number: the constraint; None means no constraint has
+        to be enforced and thus True is always returned.
+    participation: the participation to fetch data for.
+    task: the task to count on.
+    filename: the codename of the file to count.
+
+    return: whether the contestant can send in that file again.
+
+    """
+    if max_number is None or participation.unrestricted:
+        return True
+    count = get_file_submission_count(
+        sql_session, participation, task, filename)
+    return count < max_number
+
+
 def get_latest_submission(
     sql_session: Session,
     participation: Participation,

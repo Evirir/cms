@@ -202,9 +202,29 @@ class TaskHandler(BaseHandler):
                 self.redirect(self.url("task", task_id))
                 return
 
-            for testcase in dataset.testcases.values():
-                testcase.public = bool(self.get_argument(
-                    "testcase_%s_public" % testcase.id, False))
+            try:
+                for testcase in dataset.testcases.values():
+                    testcase.public = bool(self.get_argument(
+                        "testcase_%s_public" % testcase.id, False))
+
+                    field = "testcase_%s_max_submission_number" % testcase.id
+                    testcase_attrs = {}
+                    self.get_int(testcase_attrs, field)
+                    if field in testcase_attrs:
+                        max_submission_number = testcase_attrs[field]
+                        if max_submission_number is not None \
+                                and max_submission_number <= 0:
+                            raise ValueError(
+                                "The maximum number of submissions of "
+                                "testcase %s must be positive."
+                                % testcase.codename)
+                        testcase.max_submission_number = max_submission_number
+
+            except Exception as error:
+                self.service.add_notification(
+                    make_datetime(), "Invalid field(s)", repr(error))
+                self.redirect(self.url("task", task_id))
+                return
 
             # Test that the score type parameters are valid.
             try:

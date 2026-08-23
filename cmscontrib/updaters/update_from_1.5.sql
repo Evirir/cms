@@ -105,4 +105,13 @@ ALTER TABLE contests DROP COLUMN analysis_stop;
 -- https://github.com/cms-dev/cms/pull/1672
 ALTER TABLE contests DROP COLUMN per_user_time;
 
+-- per-testcase submission limits for output only tasks
+ALTER TABLE testcases ADD COLUMN max_submission_number INTEGER;
+ALTER TABLE testcases ADD CONSTRAINT testcases_max_submission_number_check CHECK ((max_submission_number > 0));
+ALTER TABLE submissions ADD COLUMN uploaded_filenames VARCHAR[];
+UPDATE submissions SET uploaded_filenames = COALESCE(
+    (SELECT array_agg(files.filename ORDER BY files.filename)
+     FROM files WHERE files.submission_id = submissions.id), '{}');
+ALTER TABLE submissions ALTER COLUMN uploaded_filenames SET NOT NULL;
+
 COMMIT;

@@ -66,6 +66,11 @@ class TaskType(metaclass=ABCMeta):
     ALLOW_PARTIAL_SUBMISSION = False
     REUSE_PREVIOUS_SUBMISSION = True
 
+    # Template for the filename of the output files provided by the user,
+    # where %s represents the testcase codename, or None if the submission
+    # format of this task type doesn't have one file per testcase.
+    USER_OUTPUT_FILENAME_TEMPLATE: str | None = None
+
     # A list of all the accepted parameters for this task type.
     # Each item is an instance of TaskTypeParameter.
     ACCEPTED_PARAMETERS: list[ParameterType] = []
