@@ -664,16 +664,6 @@ class Testcase(Base):
         nullable=False,
         default=False)
 
-    # Maximum number of times each user is allowed to send in a file
-    # for this testcase, or None to not enforce this limitation. Only
-    # meaningful for task types whose submission format has one file
-    # per testcase (that is, output only ones).
-    max_submission_number: int | None = Column(
-        Integer,
-        CheckConstraint("max_submission_number > 0",
-                        name="testcases_max_submission_number_check"),
-        nullable=True)
-
     # Digests of the input and output files.
     input: str = Column(
         Digest,
@@ -681,3 +671,16 @@ class Testcase(Base):
     output: str = Column(
         Digest,
         nullable=False)
+
+    # Maximum number of times each user is allowed to send in a file
+    # for this testcase, or None to not enforce this limitation. Only
+    # meaningful for task types whose submission format has one file
+    # per testcase (that is, output only ones).
+    #
+    # Keep this after the columns above: instances are also built by
+    # passing the values of those columns as positional arguments.
+    max_submission_number: int | None = Column(
+        Integer,
+        CheckConstraint("max_submission_number > 0",
+                        name="testcases_max_submission_number_check"),
+        nullable=True)
