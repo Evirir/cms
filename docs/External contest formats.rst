@@ -178,3 +178,19 @@ Since Polygon doesn't support CMS directly, some task parameters cannot be set u
 By default, all tasks are batch files, with custom checker and score type is Sum. Loaders assumes that checker is check.cpp and written with usage of testlib.h. It provides customized version of testlib.h which allows using Polygon checkers with CMS. Checkers will be compiled during importing the contest. This is important in case the architecture where the loading happens is different from the architecture of the workers.
 
 Polygon (by now) doesn't allow custom contest-wide files, so general contest options should be hard-coded in the loader.
+
+Polygon full packages (polyconv-style)
+--------------------------------------
+
+The ``polygon_package`` contest loader, and the ``polygon_package_batch`` and ``polygon_package_output_only`` task loaders, import a Polygon **full** package (the directory containing :file:`problem.xml`) following `polyconv <https://github.com/Evirir/polyconv>`__. They are never autodetected, so pass them with ``-L``:
+
+.. sourcecode:: bash
+
+    cmsImportContest -L polygon_package -i path/to/package
+
+- The Batch task (named after the problem's short name) contains every test, with codenames such as ``07_s3`` (test number and group), and GroupMin score parameters built from the Polygon groups, their ``complete-group``/``each-test`` points policies and their dependencies. Tests of the ``samples`` group are attached as :file:`samples.zip`.
+- Tests whose group name contains ``OO`` also form an OutputOnly task (short name with an ``-oo`` suffix), renumbered from ``00``, with one GroupMin subtask per test and the inputs attached as :file:`attachment.zip`.
+- The contest loader creates only the OutputOnly task if all non-sample tests are OutputOnly, and only the Batch task if no group contains ``OO``.
+- The checker is compiled with CMS's patched :file:`testlib.h`, together with the package resources (e.g. headers it includes).
+
+An optional :file:`files/cms_conf.py` may define ``general`` (extra task arguments, applied to both tasks), ``OUTPUT_ONLY_GROUP_SUBSTRING`` and ``SAMPLES_GROUP``.
