@@ -15,20 +15,22 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from collections.abc import Callable
 import typing
+from collections.abc import Callable
 
 from .base_loader import BaseLoader
 from .italy_yaml import YamlLoader
-from .polygon import PolygonTaskLoader, PolygonUserLoader, PolygonContestLoader
+from .polyconv import PolyconvBatchTaskLoader, PolyconvOutputOnlyTaskLoader
+from .polygon import PolygonContestLoader, PolygonTaskLoader, PolygonUserLoader
 from .tps import TpsTaskLoader
-
 
 LOADERS: dict[str, type[BaseLoader]] = dict(
     (loader_class.short_name, loader_class)
     for loader_class in [
         YamlLoader,
         PolygonTaskLoader,
+        PolyconvBatchTaskLoader,
+        PolyconvOutputOnlyTaskLoader,
         PolygonUserLoader,
         PolygonContestLoader,
         TpsTaskLoader,
@@ -73,11 +75,14 @@ def choose_loader(
                     error_callback(
                         "Couldn't autodetect the loader, "
                         "please specify it: more than one "
-                        "loader accepted the detection")
+                        "loader accepted the detection"
+                    )
         if res is None:
-            error_callback("Couldn't autodetect the loader, "
-                           "please specify it: no "
-                           "loader accepted the detection")
+            error_callback(
+                "Couldn't autodetect the loader, "
+                "please specify it: no "
+                "loader accepted the detection"
+            )
         return res
 
 
