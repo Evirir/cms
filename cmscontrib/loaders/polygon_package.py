@@ -30,6 +30,8 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
 
 ``PolygonPackageContestLoader`` creates a contest with both tasks (or only
 one of them when all the non-sample tests are OutputOnly, or none are).
+``PolygonPackageMultiContestLoader`` does the same for every problem of a
+Polygon contest package (``contest.xml`` and ``problems/*``).
 The task loaders can also be used on their own with ``cmsImportTask``.
 
 An optional ``files/cms_conf.py`` in the package may define:
@@ -67,6 +69,7 @@ from cms.db import (
     Testcase,
 )
 from cms.db.filecacher import FileCacher
+from cmscommon.crypto import build_password
 
 from .base_loader import LANGUAGE_MAP, ContestLoader, TaskLoader
 
@@ -644,6 +647,47 @@ class PolygonPackageOutputOnlyTaskLoader(_PolygonPackageTaskLoaderBase):
         return task
 
 
+def _package_task_names(package: PolygonPackage) -> list[str]:
+    """Return the names of the tasks created from a package.
+
+    Args:
+        package: The parsed Polygon package.
+
+    Returns:
+        The Batch task name unless all the non-sample tests are OutputOnly,
+        followed by the OutputOnly task name if there are OutputOnly tests.
+    """
+    names = []
+    if package.has_batch_tests or not package.output_only_tests:
+        names.append(package.name)
+    if package.output_only_tests:
+        names.append(package.output_only_name)
+    return names
+
+
+def _package_task_loader(
+    package: PolygonPackage, taskname: str, file_cacher: FileCacher
+) -> TaskLoader:
+    """Return the task loader for one of the tasks of a package.
+
+    Args:
+        package: The parsed Polygon package.
+        taskname: One of the names returned by ``_package_task_names``.
+        file_cacher: The file cacher used to store files.
+
+    Returns:
+        The Batch or OutputOnly task loader for the package.
+
+    Raises:
+        ValueError: If the task name does not belong to the package.
+    """
+    if taskname == package.name:
+        return PolygonPackageBatchTaskLoader(package.path, file_cacher)
+    if taskname == package.output_only_name:
+        return PolygonPackageOutputOnlyTaskLoader(package.path, file_cacher)
+    raise ValueError(f'Unknown task "{taskname}".')
+
+
 class PolygonPackageContestLoader(ContestLoader):
     """Load a single Polygon full package as a contest with one or two tasks.
 
@@ -676,12 +720,7 @@ class PolygonPackageContestLoader(ContestLoader):
 
     def task_names(self) -> list[str]:
         """Return the names of the tasks created from the package."""
-        names = []
-        if self.package.has_batch_tests or not self.package.output_only_tests:
-            names.append(self.package.name)
-        if self.package.output_only_tests:
-            names.append(self.package.output_only_name)
-        return names
+        return _package_task_names(self.package)
 
     def get_task_loader(self, taskname: str) -> TaskLoader:
         """See docstring in class ContestLoader.
@@ -689,11 +728,7 @@ class PolygonPackageContestLoader(ContestLoader):
         Raises:
             ValueError: If the task name does not belong to the package.
         """
-        if taskname == self.package.name:
-            return PolygonPackageBatchTaskLoader(self.path, self.file_cacher)
-        if taskname == self.package.output_only_name:
-            return PolygonPackageOutputOnlyTaskLoader(self.path, self.file_cacher)
-        raise ValueError(f'Unknown task "{taskname}".')
+        return _package_task_loader(self.package, taskname, self.file_cacher)
 
     def get_contest(self) -> tuple[Contest, list[str], list[dict]]:
         """See docstring in class ContestLoader."""
@@ -705,3 +740,105 @@ class PolygonPackageContestLoader(ContestLoader):
             main_group=group,
         )
         return contest, self.task_names(), []
+
+
+class PolygonPackageMultiContestLoader(ContestLoader):
+    """Load a Polygon contest package, converting each problem like polyconv.
+
+    The package contains ``contest.xml`` and one full package per problem in
+    ``problems/<short-name>``. Each problem becomes one or two tasks, as with
+    ``PolygonPackageContestLoader``, in the order of ``contest.xml``.
+
+    Like ``polygon_contest``, an optional ``contestants.txt`` holds one
+    participation per line as ``username;password;first_name;last_name;hidden``
+    (the users must already exist).
+    """
+
+    short_name = "polygon_package_contest"
+    description = "Polygon contest package (polyconv-style tasks per problem)"
+
+    def __init__(self, path: str, file_cacher: FileCacher):
+        """Parse ``contest.xml`` and the package of every problem.
+
+        Args:
+            path: Root directory of the Polygon contest package.
+            file_cacher: The file cacher used to store files.
+
+        Raises:
+            ValueError: If ``contest.xml`` has no problems, or two problems
+                produce tasks with the same name.
+        """
+        super().__init__(path, file_cacher)
+        self.root = ET.parse(os.path.join(path, "contest.xml")).getroot()
+
+        self.packages: list[PolygonPackage] = []
+        for problem in self.root.findall("problems/problem"):
+            url = problem.get("url", "").rstrip("/")
+            self.packages.append(
+                PolygonPackage(os.path.join(path, "problems", os.path.basename(url)))
+            )
+        if not self.packages:
+            raise ValueError("contest.xml lists no problems.")
+
+        self.task_packages: dict[str, PolygonPackage] = {}
+        for package in self.packages:
+            for taskname in _package_task_names(package):
+                if taskname in self.task_packages:
+                    raise ValueError(f'Two problems produce the task "{taskname}".')
+                self.task_packages[taskname] = package
+
+    @staticmethod
+    def detect(path: str) -> bool:
+        """Never autodetect, to avoid clashing with polygon_contest."""
+        return False
+
+    def contest_has_changed(self) -> bool:
+        """See docstring in class ContestLoader."""
+        return True
+
+    def get_task_loader(self, taskname: str) -> TaskLoader:
+        """See docstring in class ContestLoader.
+
+        Raises:
+            ValueError: If no problem produces the task.
+        """
+        if taskname not in self.task_packages:
+            raise ValueError(f'Unknown task "{taskname}".')
+        return _package_task_loader(
+            self.task_packages[taskname], taskname, self.file_cacher
+        )
+
+    def _participations(self) -> list[dict]:
+        """Read the participations from the optional ``contestants.txt``."""
+        users_path = os.path.join(self.path, "contestants.txt")
+        if not os.path.exists(users_path):
+            return []
+        participations = []
+        with open(users_path, encoding="utf-8") as users_file:
+            for line in users_file:
+                fields = [field.strip() for field in line.split(";")]
+                if not fields[0]:
+                    continue
+                participation: dict = {"username": fields[0]}
+                if len(fields) > 1 and fields[1]:
+                    participation["password"] = build_password(fields[1])
+                participation["hidden"] = len(fields) > 4 and fields[4] == "1"
+                participations.append(participation)
+        return participations
+
+    def get_contest(self) -> tuple[Contest, list[str], list[dict]]:
+        """See docstring in class ContestLoader."""
+        name = os.path.basename(os.path.normpath(self.path))
+        names = self.root.findall("names/name")
+        main_names = [n for n in names if n.get("main") == "true"] or names
+        description = main_names[0].get("value", name) if main_names else name
+
+        group = Group(name="default")
+        contest = Contest(
+            name=name,
+            description=description,
+            groups=[group],
+            main_group=group,
+        )
+        logger.info("Contest parameters loaded.")
+        return contest, list(self.task_packages), self._participations()

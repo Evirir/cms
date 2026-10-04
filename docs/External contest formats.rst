@@ -194,3 +194,9 @@ The ``polygon_package`` contest loader, and the ``polygon_package_batch`` and ``
 - The checker is compiled with CMS's patched :file:`testlib.h`, together with the package resources (e.g. headers it includes).
 
 An optional :file:`files/cms_conf.py` may define ``general`` (extra task arguments, applied to both tasks), ``OUTPUT_ONLY_GROUP_SUBSTRING`` and ``SAMPLES_GROUP``.
+
+To import a Polygon **contest** package (:file:`contest.xml` and one full package per problem in :file:`problems/`), use the ``polygon_package_contest`` loader instead. Each problem becomes one or two tasks as described above, in the order of :file:`contest.xml`; the contest is named after the package directory. As with ``polygon_contest``, an optional :file:`contestants.txt` lists participations of existing users, one per line as ``username;password;first_name;last_name;hidden``.
+
+.. sourcecode:: bash
+
+    cmsImportContest -L polygon_package_contest -i path/to/contest

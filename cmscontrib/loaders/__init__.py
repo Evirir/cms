@@ -24,6 +24,7 @@ from .polygon import PolygonTaskLoader, PolygonUserLoader, PolygonContestLoader
 from .polygon_package import (
     PolygonPackageBatchTaskLoader,
     PolygonPackageContestLoader,
+    PolygonPackageMultiContestLoader,
     PolygonPackageOutputOnlyTaskLoader,
 )
 from .tps import TpsTaskLoader
@@ -39,6 +40,7 @@ LOADERS: dict[str, type[BaseLoader]] = dict(
         PolygonPackageBatchTaskLoader,
         PolygonPackageOutputOnlyTaskLoader,
         PolygonPackageContestLoader,
+        PolygonPackageMultiContestLoader,
         TpsTaskLoader,
     ]
 )

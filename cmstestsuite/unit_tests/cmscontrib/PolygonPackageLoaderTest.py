@@ -28,6 +28,7 @@ from cmscontrib.loaders.polygon_package import (
     PolygonPackage,
     PolygonPackageBatchTaskLoader,
     PolygonPackageContestLoader,
+    PolygonPackageMultiContestLoader,
     PolygonPackageOutputOnlyTaskLoader,
 )
 
@@ -73,7 +74,10 @@ class FakeFileCacher:
 
 
 def write_package(
-    path: Path, tests: Sequence[tuple[str, int]], groups_xml: str
+    path: Path,
+    tests: Sequence[tuple[str, int]],
+    groups_xml: str,
+    short_name: str = "sorting",
 ) -> Path:
     """Write a minimal Polygon package without a checker.
 
@@ -81,6 +85,7 @@ def write_package(
         path: Directory in which to create the package.
         tests: (group, points) of each test.
         groups_xml: The content of the ``<groups>`` element.
+        short_name: The problem short name.
 
     Returns:
         The package root.
@@ -88,9 +93,10 @@ def write_package(
     tests_xml = "".join(
         f'<test group="{group}" points="{points}"/>' for group, points in tests
     )
+    path.mkdir(parents=True, exist_ok=True)
     (path / "problem.xml").write_text(
         f"""<?xml version="1.0" encoding="utf-8"?>
-<problem short-name="sorting">
+<problem short-name="{short_name}">
   <names><name language="english" value="Sorting"/></names>
   <judging input-file="" output-file="">
     <testset name="tests">
@@ -286,3 +292,98 @@ def test_cms_conf_overrides_output_only_substring(mixed_package: Path) -> None:
     )
     package = PolygonPackage(str(mixed_package))
     assert [t.index for t in package.output_only_tests] == [3, 4]
+
+
+BATCH_ONLY_TESTS = [("samples", 0), ("s1", 100)]
+BATCH_ONLY_GROUPS = (
+    '<group name="samples" points-policy="complete-group"/>'
+    '<group name="s1" points="100" points-policy="complete-group"/>'
+)
+
+
+def write_contest(path: Path, problems: Sequence[str]) -> Path:
+    """Write a Polygon contest package listing the given problems.
+
+    Args:
+        path: Directory in which to create the contest package.
+        problems: Short names of the problems, in contest order.
+
+    Returns:
+        The contest package root.
+    """
+    problems_xml = "".join(
+        f'<problem index="{chr(ord("A") + i)}" '
+        f'url="https://polygon.codeforces.com/p/user/{name}"/>'
+        for i, name in enumerate(problems)
+    )
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "contest.xml").write_text(
+        f"""<?xml version="1.0" encoding="utf-8"?>
+<contest url="https://polygon.codeforces.com/c/1/practice">
+  <names>
+    <name language="russian" value="Practice RU"/>
+    <name language="english" main="true" value="Practice Contest"/>
+  </names>
+  <problems>{problems_xml}</problems>
+</contest>
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.fixture
+def contest_package(tmp_path: Path) -> Path:
+    """Return a contest with a mixed problem and a Batch-only problem."""
+    path = write_contest(tmp_path / "practice", ["beta", "alpha"])
+    write_package(path / "problems" / "beta", MIXED_TESTS, MIXED_GROUPS, "beta")
+    write_package(
+        path / "problems" / "alpha", BATCH_ONLY_TESTS, BATCH_ONLY_GROUPS, "alpha"
+    )
+    return path
+
+
+def test_multi_contest_loader_creates_tasks_for_every_problem(
+    contest_package: Path,
+) -> None:
+    """Every problem yields its tasks, in contest.xml order."""
+    loader = PolygonPackageMultiContestLoader(str(contest_package), FakeFileCacher())
+    contest, tasks, participations = loader.get_contest()
+    assert contest.name == "practice"
+    assert contest.description == "Practice Contest"
+    assert tasks == ["beta", "beta-oo", "alpha"]
+    assert participations == []
+    assert isinstance(loader.get_task_loader("beta"), PolygonPackageBatchTaskLoader)
+    assert isinstance(
+        loader.get_task_loader("beta-oo"), PolygonPackageOutputOnlyTaskLoader
+    )
+    alpha = loader.get_task_loader("alpha").get_task(get_statement=False)
+    assert alpha is not None
+    assert alpha.name == "alpha"
+    assert sorted(alpha.active_dataset.testcases) == ["1_samples", "2_s1"]
+    with pytest.raises(ValueError, match="Unknown task"):
+        loader.get_task_loader("alpha-oo")
+
+
+def test_multi_contest_loader_reads_contestants(contest_package: Path) -> None:
+    """contestants.txt lines become participations."""
+    (contest_package / "contestants.txt").write_text(
+        "alice;secret;Alice;A;0\nbob;;Bob;B;1\n\n", encoding="utf-8"
+    )
+    loader = PolygonPackageMultiContestLoader(str(contest_package), FakeFileCacher())
+    _, _, participations = loader.get_contest()
+    assert [p["username"] for p in participations] == ["alice", "bob"]
+    assert [p["hidden"] for p in participations] == [False, True]
+    assert "password" in participations[0]
+    assert "password" not in participations[1]
+
+
+def test_multi_contest_loader_rejects_clashing_task_names(tmp_path: Path) -> None:
+    """Two problems producing the same task name are an error."""
+    path = write_contest(tmp_path / "practice", ["first", "second"])
+    write_package(path / "problems" / "first", MIXED_TESTS, MIXED_GROUPS, "dup")
+    write_package(
+        path / "problems" / "second", BATCH_ONLY_TESTS, BATCH_ONLY_GROUPS, "dup"
+    )
+    with pytest.raises(ValueError, match='task "dup"'):
+        PolygonPackageMultiContestLoader(str(path), FakeFileCacher())
