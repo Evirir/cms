@@ -555,9 +555,7 @@ class MIPSPolygonBatchTaskLoader(_MIPSPolygonTaskLoaderBase):
         name = package.name
         logger.info("Loading Batch task %s.", name)
 
-        args = self._task_args(
-            name, package.title + BATCH_TITLE_SUFFIX, get_statement
-        )
+        args = self._task_args(name, package.title + BATCH_TITLE_SUFFIX, get_statement)
         args["submission_format"] = [f"{name}.%l"]
         args["attachments"] = {}
         if package.sample_tests:
