@@ -394,3 +394,18 @@ def test_package_without_generated_tests_is_rejected(mixed_package: Path) -> Non
     (mixed_package / "tests" / "02").unlink()
     with pytest.raises(ValueError, match=r"lacks test files \(tests/02\)"):
         PolygonPackage(str(mixed_package))
+
+
+def test_title_prefers_english_name(mixed_package: Path) -> None:
+    """The English name is used as title even when it is not listed first."""
+    problem_xml = mixed_package / "problem.xml"
+    problem_xml.write_text(
+        problem_xml.read_text(encoding="utf-8").replace(
+            '<names><name language="english" value="Sorting"/></names>',
+            '<names><name language="chinese" value="排序"/>'
+            '<name language="english" value="Sorting"/>'
+            '<name language="malay" value="Isihan"/></names>',
+        ),
+        encoding="utf-8",
+    )
+    assert PolygonPackage(str(mixed_package)).title == "Sorting"

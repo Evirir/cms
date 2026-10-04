@@ -79,6 +79,7 @@ DEFAULT_OUTPUT_ONLY_GROUP_SUBSTRING = "OO"
 DEFAULT_SAMPLES_GROUP = "samples"
 OUTPUT_ONLY_TASK_SUFFIX = "-oo"
 OUTPUT_ONLY_TITLE_SUFFIX = " (Output Only)"
+TITLE_LANGUAGE = "english"
 OUTPUT_ONLY_ATTACHMENT_NAME = "attachment.zip"
 SAMPLES_ATTACHMENT_NAME = "samples.zip"
 CMS_CONF_PATH = os.path.join("files", "cms_conf.py")
@@ -153,11 +154,13 @@ class PolygonPackage:
         root = ET.parse(os.path.join(path, "problem.xml")).getroot()
 
         self.name = root.get("short-name") or os.path.basename(os.path.normpath(path))
-        name_element = root.find("names/name")
+        names = {
+            element.get("language"): element.get("value")
+            for element in root.findall("names/name")
+            if element.get("value")
+        }
         self.title = (
-            name_element.get("value", self.name)
-            if name_element is not None
-            else self.name
+            names.get(TITLE_LANGUAGE) or next(iter(names.values()), None) or self.name
         )
 
         judging = root.find("judging")
