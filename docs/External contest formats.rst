@@ -182,11 +182,11 @@ Polygon (by now) doesn't allow custom contest-wide files, so general contest opt
 Polygon full packages (polyconv-style)
 --------------------------------------
 
-The ``polygon_package`` contest loader, and the ``polygon_package_batch`` and ``polygon_package_output_only`` task loaders, import a Polygon **full** package (the directory containing :file:`problem.xml`) following `polyconv <https://github.com/Evirir/polyconv>`__. They are never autodetected, so pass them with ``-L``:
+The ``mips_polygon`` contest loader, and the ``mips_polygon_batch`` and ``mips_polygon_output_only`` task loaders, import a Polygon **full** package (the directory containing :file:`problem.xml`) following `polyconv <https://github.com/Evirir/polyconv>`__. They are never autodetected, so pass them with ``-L``:
 
 .. sourcecode:: bash
 
-    cmsImportContest -L polygon_package -i path/to/package
+    cmsImportContest -L mips_polygon -i path/to/package
 
 - The Batch task (named after the problem's short name) contains every test, with codenames such as ``07_s3`` (test number and group), and GroupMin score parameters built from the Polygon groups, their ``complete-group``/``each-test`` points policies and their dependencies. Tests of the ``samples`` group are attached as :file:`samples.zip`.
 - Tests whose group name contains ``OO`` also form an OutputOnly task (short name with an ``-oo`` suffix), renumbered from ``00``, with one GroupMin subtask per test and the inputs attached as :file:`attachment.zip`.
@@ -199,8 +199,8 @@ Every task gets ``feedback_level = "oi_restricted"``, ``score_mode = "max_subtas
 
 The task title is the English problem name, or the first name if there is no English one.
 
-To import a Polygon **contest** package (:file:`contest.xml` and one full package per problem in :file:`problems/`), use the ``polygon_package_contest`` loader instead. Each problem becomes one or two tasks as described above, in the order of :file:`contest.xml`; the contest is named after the package directory. As with ``polygon_contest``, an optional :file:`contestants.txt` lists participations of existing users, one per line as ``username;password;first_name;last_name;hidden``.
+To import a Polygon **contest** package (:file:`contest.xml` and one full package per problem in :file:`problems/`), use the ``mips_polygon_contest`` loader instead. Each problem becomes one or two tasks as described above, in the order of :file:`contest.xml`; the contest is named after the package directory. As with ``polygon_contest``, an optional :file:`contestants.txt` lists participations of existing users, one per line as ``username;password;first_name;last_name;hidden``.
 
 .. sourcecode:: bash
 
-    cmsImportContest -L polygon_package_contest -i path/to/contest
+    cmsImportContest -L mips_polygon_contest -i path/to/contest

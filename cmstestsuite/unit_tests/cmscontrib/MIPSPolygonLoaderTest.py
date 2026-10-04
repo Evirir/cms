@@ -24,12 +24,12 @@ from pathlib import Path
 
 import pytest
 
-from cmscontrib.loaders.polygon_package import (
-    PolygonPackage,
-    PolygonPackageBatchTaskLoader,
-    PolygonPackageContestLoader,
-    PolygonPackageMultiContestLoader,
-    PolygonPackageOutputOnlyTaskLoader,
+from cmscontrib.loaders.mips_polygon import (
+    MIPSPolygon,
+    MIPSPolygonBatchTaskLoader,
+    MIPSPolygonContestLoader,
+    MIPSPolygonMultiContestLoader,
+    MIPSPolygonOutputOnlyTaskLoader,
 )
 
 # (group, points) for each test, in Polygon order.
@@ -135,7 +135,7 @@ def test_batch_score_params_follow_groups_and_dependencies(
     mixed_package: Path,
 ) -> None:
     """Score parameters cover each group plus its transitive prerequisites."""
-    package = PolygonPackage(str(mixed_package))
+    package = MIPSPolygon(str(mixed_package))
     codenames = [package.batch_codename(t) for t in package.tests]
     assert codenames == [
         "1_samples",
@@ -161,7 +161,7 @@ def test_batch_score_params_follow_groups_and_dependencies(
 
 def test_group_regex_does_not_match_longer_group_names(tmp_path: Path) -> None:
     """A group named s3 must not match the tests of group s3-OO."""
-    package = PolygonPackage(
+    package = MIPSPolygon(
         str(
             write_package(
                 tmp_path,
@@ -182,14 +182,14 @@ def test_contest_loader_creates_batch_and_output_only_tasks(
     mixed_package: Path,
 ) -> None:
     """A package with both kinds of tests yields two tasks."""
-    loader = PolygonPackageContestLoader(str(mixed_package), FakeFileCacher())
+    loader = MIPSPolygonContestLoader(str(mixed_package), FakeFileCacher())
     contest, tasks, participations = loader.get_contest()
     assert contest.name == "sorting"
     assert tasks == ["sorting", "sorting-oo"]
     assert participations == []
-    assert isinstance(loader.get_task_loader("sorting"), PolygonPackageBatchTaskLoader)
+    assert isinstance(loader.get_task_loader("sorting"), MIPSPolygonBatchTaskLoader)
     assert isinstance(
-        loader.get_task_loader("sorting-oo"), PolygonPackageOutputOnlyTaskLoader
+        loader.get_task_loader("sorting-oo"), MIPSPolygonOutputOnlyTaskLoader
     )
 
 
@@ -223,14 +223,14 @@ def test_contest_loader_creates_one_task(
 ) -> None:
     """All-OutputOnly or all-Batch packages yield a single task."""
     path = write_package(tmp_path, tests, groups_xml)
-    _, tasks, _ = PolygonPackageContestLoader(str(path), FakeFileCacher()).get_contest()
+    _, tasks, _ = MIPSPolygonContestLoader(str(path), FakeFileCacher()).get_contest()
     assert tasks == expected
 
 
 def test_batch_task(mixed_package: Path) -> None:
     """The Batch task has every test, the samples and GroupMin parameters."""
     cacher = FakeFileCacher()
-    task = PolygonPackageBatchTaskLoader(str(mixed_package), cacher).get_task(
+    task = MIPSPolygonBatchTaskLoader(str(mixed_package), cacher).get_task(
         get_statement=False
     )
     assert task is not None
@@ -255,7 +255,7 @@ def test_batch_task(mixed_package: Path) -> None:
 def test_output_only_task(mixed_package: Path) -> None:
     """The OutputOnly task renumbers OO tests and attaches their inputs."""
     cacher = FakeFileCacher()
-    task = PolygonPackageOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+    task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
         get_statement=False
     )
     assert task is not None
@@ -290,7 +290,7 @@ def test_cms_conf_overrides_output_only_substring(mixed_package: Path) -> None:
     (mixed_package / "files" / "cms_conf.py").write_text(
         'OUTPUT_ONLY_GROUP_SUBSTRING = "s2"\n', encoding="utf-8"
     )
-    package = PolygonPackage(str(mixed_package))
+    package = MIPSPolygon(str(mixed_package))
     assert [t.index for t in package.output_only_tests] == [3, 4]
 
 
@@ -347,15 +347,15 @@ def test_multi_contest_loader_creates_tasks_for_every_problem(
     contest_package: Path,
 ) -> None:
     """Every problem yields its tasks, in contest.xml order."""
-    loader = PolygonPackageMultiContestLoader(str(contest_package), FakeFileCacher())
+    loader = MIPSPolygonMultiContestLoader(str(contest_package), FakeFileCacher())
     contest, tasks, participations = loader.get_contest()
     assert contest.name == "practice"
     assert contest.description == "Practice Contest"
     assert tasks == ["beta", "beta-oo", "alpha"]
     assert participations == []
-    assert isinstance(loader.get_task_loader("beta"), PolygonPackageBatchTaskLoader)
+    assert isinstance(loader.get_task_loader("beta"), MIPSPolygonBatchTaskLoader)
     assert isinstance(
-        loader.get_task_loader("beta-oo"), PolygonPackageOutputOnlyTaskLoader
+        loader.get_task_loader("beta-oo"), MIPSPolygonOutputOnlyTaskLoader
     )
     alpha = loader.get_task_loader("alpha").get_task(get_statement=False)
     assert alpha is not None
@@ -370,7 +370,7 @@ def test_multi_contest_loader_reads_contestants(contest_package: Path) -> None:
     (contest_package / "contestants.txt").write_text(
         "alice;secret;Alice;A;0\nbob;;Bob;B;1\n\n", encoding="utf-8"
     )
-    loader = PolygonPackageMultiContestLoader(str(contest_package), FakeFileCacher())
+    loader = MIPSPolygonMultiContestLoader(str(contest_package), FakeFileCacher())
     _, _, participations = loader.get_contest()
     assert [p["username"] for p in participations] == ["alice", "bob"]
     assert [p["hidden"] for p in participations] == [False, True]
@@ -386,14 +386,14 @@ def test_multi_contest_loader_rejects_clashing_task_names(tmp_path: Path) -> Non
         path / "problems" / "second", BATCH_ONLY_TESTS, BATCH_ONLY_GROUPS, "dup"
     )
     with pytest.raises(ValueError, match='task "dup"'):
-        PolygonPackageMultiContestLoader(str(path), FakeFileCacher())
+        MIPSPolygonMultiContestLoader(str(path), FakeFileCacher())
 
 
 def test_package_without_generated_tests_is_rejected(mixed_package: Path) -> None:
     """A package whose tests were not generated gives a clear error."""
     (mixed_package / "tests" / "02").unlink()
     with pytest.raises(ValueError, match=r"lacks test files \(tests/02\)"):
-        PolygonPackage(str(mixed_package))
+        MIPSPolygon(str(mixed_package))
 
 
 def test_title_prefers_english_name(mixed_package: Path) -> None:
@@ -408,18 +408,18 @@ def test_title_prefers_english_name(mixed_package: Path) -> None:
         ),
         encoding="utf-8",
     )
-    assert PolygonPackage(str(mixed_package)).title == "Sorting"
+    assert MIPSPolygon(str(mixed_package)).title == "Sorting"
 
 
 def test_default_task_args(mixed_package: Path) -> None:
     """Tasks default to OI restricted feedback, IOI 2017- scoring, 60 submissions."""
     cacher = FakeFileCacher()
-    batch = PolygonPackageBatchTaskLoader(str(mixed_package), cacher).get_task(
+    batch = MIPSPolygonBatchTaskLoader(str(mixed_package), cacher).get_task(
         get_statement=False
     )
-    output_only = PolygonPackageOutputOnlyTaskLoader(
-        str(mixed_package), cacher
-    ).get_task(get_statement=False)
+    output_only = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
     for task in (batch, output_only):
         assert task is not None
         assert task.feedback_level == "oi_restricted"
@@ -434,7 +434,7 @@ def test_cms_conf_general_overrides_defaults(mixed_package: Path) -> None:
         'general = {"feedback_level": "full", "max_submission_number": None}\n',
         encoding="utf-8",
     )
-    task = PolygonPackageBatchTaskLoader(str(mixed_package), FakeFileCacher()).get_task(
+    task = MIPSPolygonBatchTaskLoader(str(mixed_package), FakeFileCacher()).get_task(
         get_statement=False
     )
     assert task is not None

@@ -28,9 +28,9 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
 * Tests of the samples group (``samples`` by default) are attached to the
   Batch task as ``samples.zip``.
 
-``PolygonPackageContestLoader`` creates a contest with both tasks (or only
+``MIPSPolygonContestLoader`` creates a contest with both tasks (or only
 one of them when all the non-sample tests are OutputOnly, or none are).
-``PolygonPackageMultiContestLoader`` does the same for every problem of a
+``MIPSPolygonMultiContestLoader`` does the same for every problem of a
 Polygon contest package (``contest.xml`` and ``problems/*``).
 The task loaders can also be used on their own with ``cmsImportTask``.
 
@@ -129,7 +129,7 @@ class PolygonGroup:
     dependencies: list[str]
 
 
-class PolygonPackage:
+class MIPSPolygon:
     """Parsed content of a Polygon full package.
 
     Attributes:
@@ -438,7 +438,7 @@ def _zip_bytes(files: Mapping[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
-class _PolygonPackageTaskLoaderBase(TaskLoader):
+class _MIPSPolygonTaskLoaderBase(TaskLoader):
     """Shared logic of the Batch and OutputOnly Polygon package loaders."""
 
     def __init__(self, path: str, file_cacher: FileCacher):
@@ -449,7 +449,7 @@ class _PolygonPackageTaskLoaderBase(TaskLoader):
             file_cacher: The file cacher used to store files.
         """
         super().__init__(path, file_cacher)
-        self.package = PolygonPackage(path)
+        self.package = MIPSPolygon(path)
 
     @staticmethod
     def detect(path: str) -> bool:
@@ -542,10 +542,10 @@ class _PolygonPackageTaskLoaderBase(TaskLoader):
         return {"checker": Manager("checker", digest)}, "comparator"
 
 
-class PolygonPackageBatchTaskLoader(_PolygonPackageTaskLoaderBase):
+class MIPSPolygonBatchTaskLoader(_MIPSPolygonTaskLoaderBase):
     """Load the Batch task of a Polygon full package (polyconv-style)."""
 
-    short_name = "polygon_package_batch"
+    short_name = "mips_polygon_batch"
     description = "Polygon full package, Batch task with GroupMin subtasks"
 
     def get_task(self, get_statement: bool = True) -> Task | None:
@@ -607,10 +607,10 @@ class PolygonPackageBatchTaskLoader(_PolygonPackageTaskLoaderBase):
         return task
 
 
-class PolygonPackageOutputOnlyTaskLoader(_PolygonPackageTaskLoaderBase):
+class MIPSPolygonOutputOnlyTaskLoader(_MIPSPolygonTaskLoaderBase):
     """Load the OutputOnly task of a Polygon full package (polyconv-style)."""
 
-    short_name = "polygon_package_output_only"
+    short_name = "mips_polygon_output_only"
     description = "Polygon full package, OutputOnly task from OO groups"
 
     def get_task(self, get_statement: bool = True) -> Task | None:
@@ -671,7 +671,7 @@ class PolygonPackageOutputOnlyTaskLoader(_PolygonPackageTaskLoaderBase):
         return task
 
 
-def _package_task_names(package: PolygonPackage) -> list[str]:
+def _package_task_names(package: MIPSPolygon) -> list[str]:
     """Return the names of the tasks created from a package.
 
     Args:
@@ -690,7 +690,7 @@ def _package_task_names(package: PolygonPackage) -> list[str]:
 
 
 def _package_task_loader(
-    package: PolygonPackage, taskname: str, file_cacher: FileCacher
+    package: MIPSPolygon, taskname: str, file_cacher: FileCacher
 ) -> TaskLoader:
     """Return the task loader for one of the tasks of a package.
 
@@ -706,13 +706,13 @@ def _package_task_loader(
         ValueError: If the task name does not belong to the package.
     """
     if taskname == package.name:
-        return PolygonPackageBatchTaskLoader(package.path, file_cacher)
+        return MIPSPolygonBatchTaskLoader(package.path, file_cacher)
     if taskname == package.output_only_name:
-        return PolygonPackageOutputOnlyTaskLoader(package.path, file_cacher)
+        return MIPSPolygonOutputOnlyTaskLoader(package.path, file_cacher)
     raise ValueError(f'Unknown task "{taskname}".')
 
 
-class PolygonPackageContestLoader(ContestLoader):
+class MIPSPolygonContestLoader(ContestLoader):
     """Load a single Polygon full package as a contest with one or two tasks.
 
     The Batch task is created unless all the non-sample tests are
@@ -720,7 +720,7 @@ class PolygonPackageContestLoader(ContestLoader):
     OutputOnly substring.
     """
 
-    short_name = "polygon_package"
+    short_name = "mips_polygon"
     description = "Polygon full package as a contest (Batch + OutputOnly tasks)"
 
     def __init__(self, path: str, file_cacher: FileCacher):
@@ -731,7 +731,7 @@ class PolygonPackageContestLoader(ContestLoader):
             file_cacher: The file cacher used to store files.
         """
         super().__init__(path, file_cacher)
-        self.package = PolygonPackage(path)
+        self.package = MIPSPolygon(path)
 
     @staticmethod
     def detect(path: str) -> bool:
@@ -766,19 +766,19 @@ class PolygonPackageContestLoader(ContestLoader):
         return contest, self.task_names(), []
 
 
-class PolygonPackageMultiContestLoader(ContestLoader):
+class MIPSPolygonMultiContestLoader(ContestLoader):
     """Load a Polygon contest package, converting each problem like polyconv.
 
     The package contains ``contest.xml`` and one full package per problem in
     ``problems/<short-name>``. Each problem becomes one or two tasks, as with
-    ``PolygonPackageContestLoader``, in the order of ``contest.xml``.
+    ``MIPSPolygonContestLoader``, in the order of ``contest.xml``.
 
     Like ``polygon_contest``, an optional ``contestants.txt`` holds one
     participation per line as ``username;password;first_name;last_name;hidden``
     (the users must already exist).
     """
 
-    short_name = "polygon_package_contest"
+    short_name = "mips_polygon_contest"
     description = "Polygon contest package (polyconv-style tasks per problem)"
 
     def __init__(self, path: str, file_cacher: FileCacher):
@@ -795,16 +795,16 @@ class PolygonPackageMultiContestLoader(ContestLoader):
         super().__init__(path, file_cacher)
         self.root = ET.parse(os.path.join(path, "contest.xml")).getroot()
 
-        self.packages: list[PolygonPackage] = []
+        self.packages: list[MIPSPolygon] = []
         for problem in self.root.findall("problems/problem"):
             url = problem.get("url", "").rstrip("/")
             self.packages.append(
-                PolygonPackage(os.path.join(path, "problems", os.path.basename(url)))
+                MIPSPolygon(os.path.join(path, "problems", os.path.basename(url)))
             )
         if not self.packages:
             raise ValueError("contest.xml lists no problems.")
 
-        self.task_packages: dict[str, PolygonPackage] = {}
+        self.task_packages: dict[str, MIPSPolygon] = {}
         for package in self.packages:
             for taskname in _package_task_names(package):
                 if taskname in self.task_packages:
