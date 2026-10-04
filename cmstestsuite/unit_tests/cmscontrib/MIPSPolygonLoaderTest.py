@@ -235,6 +235,7 @@ def test_batch_task(mixed_package: Path) -> None:
     )
     assert task is not None
     assert task.name == "sorting"
+    assert task.title == "Sorting (Code)"
     assert task.submission_format == ["sorting.%l"]
     dataset = task.active_dataset
     assert dataset.task_type == "Batch"
@@ -260,7 +261,7 @@ def test_output_only_task(mixed_package: Path) -> None:
     )
     assert task is not None
     assert task.name == "sorting-oo"
-    assert task.title == "Sorting (Output Only)"
+    assert task.title == "Sorting (Output)"
     assert task.submission_format == [
         "output_00.txt",
         "output_01.txt",

@@ -80,7 +80,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_OUTPUT_ONLY_GROUP_SUBSTRING = "OO"
 DEFAULT_SAMPLES_GROUP = "samples"
 OUTPUT_ONLY_TASK_SUFFIX = "-oo"
-OUTPUT_ONLY_TITLE_SUFFIX = " (Output Only)"
+BATCH_TITLE_SUFFIX = " (Code)"
+OUTPUT_ONLY_TITLE_SUFFIX = " (Output)"
 TITLE_LANGUAGE = "english"
 OUTPUT_ONLY_ATTACHMENT_NAME = "attachment.zip"
 SAMPLES_ATTACHMENT_NAME = "samples.zip"
@@ -554,7 +555,9 @@ class MIPSPolygonBatchTaskLoader(_MIPSPolygonTaskLoaderBase):
         name = package.name
         logger.info("Loading Batch task %s.", name)
 
-        args = self._task_args(name, package.title, get_statement)
+        args = self._task_args(
+            name, package.title + BATCH_TITLE_SUFFIX, get_statement
+        )
         args["submission_format"] = [f"{name}.%l"]
         args["attachments"] = {}
         if package.sample_tests:
