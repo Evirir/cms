@@ -58,6 +58,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import ModuleType
 
+from cms import FEEDBACK_LEVEL_OI_RESTRICTED
 from cms.db import (
     Attachment,
     Contest,
@@ -69,6 +70,7 @@ from cms.db import (
     Testcase,
 )
 from cms.db.filecacher import FileCacher
+from cmscommon.constants import SCORE_MODE_MAX_SUBTASK
 from cmscommon.crypto import build_password
 
 from .base_loader import LANGUAGE_MAP, ContestLoader, TaskLoader
@@ -83,6 +85,12 @@ TITLE_LANGUAGE = "english"
 OUTPUT_ONLY_ATTACHMENT_NAME = "attachment.zip"
 SAMPLES_ATTACHMENT_NAME = "samples.zip"
 CMS_CONF_PATH = os.path.join("files", "cms_conf.py")
+# Task arguments set on every task, overridable by ``general`` in cms_conf.py.
+DEFAULT_TASK_ARGS: Mapping[str, object] = {
+    "feedback_level": FEEDBACK_LEVEL_OI_RESTRICTED,
+    "score_mode": SCORE_MODE_MAX_SUBTASK,
+    "max_submission_number": 60,
+}
 
 
 @dataclass
@@ -481,7 +489,8 @@ class _PolygonPackageTaskLoaderBase(TaskLoader):
         return args
 
     def _apply_general_conf(self, args: dict) -> None:
-        """Apply the ``general`` dict from ``files/cms_conf.py``, if any."""
+        """Apply the defaults, then the ``general`` dict of ``files/cms_conf.py``."""
+        args.update(DEFAULT_TASK_ARGS)
         conf = self.package.conf
         if conf is not None and hasattr(conf, "general"):
             args.update(conf.general)

@@ -409,3 +409,35 @@ def test_title_prefers_english_name(mixed_package: Path) -> None:
         encoding="utf-8",
     )
     assert PolygonPackage(str(mixed_package)).title == "Sorting"
+
+
+def test_default_task_args(mixed_package: Path) -> None:
+    """Tasks default to OI restricted feedback, IOI 2017- scoring, 60 submissions."""
+    cacher = FakeFileCacher()
+    batch = PolygonPackageBatchTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
+    output_only = PolygonPackageOutputOnlyTaskLoader(
+        str(mixed_package), cacher
+    ).get_task(get_statement=False)
+    for task in (batch, output_only):
+        assert task is not None
+        assert task.feedback_level == "oi_restricted"
+        assert task.score_mode == "max_subtask"
+        assert task.max_submission_number == 60
+
+
+def test_cms_conf_general_overrides_defaults(mixed_package: Path) -> None:
+    """``general`` in files/cms_conf.py overrides the default task arguments."""
+    (mixed_package / "files").mkdir()
+    (mixed_package / "files" / "cms_conf.py").write_text(
+        'general = {"feedback_level": "full", "max_submission_number": None}\n',
+        encoding="utf-8",
+    )
+    task = PolygonPackageBatchTaskLoader(str(mixed_package), FakeFileCacher()).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    assert task.feedback_level == "full"
+    assert task.max_submission_number is None
+    assert task.score_mode == "max_subtask"
