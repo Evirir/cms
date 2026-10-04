@@ -192,6 +192,18 @@ class PolygonPackage:
             )
         if not self.tests:
             raise ValueError("No tests found in problem.xml.")
+        missing = [
+            os.path.relpath(test_path, path)
+            for test in self.tests
+            for test_path in (test.input_path, test.answer_path)
+            if not os.path.exists(test_path)
+        ]
+        if missing:
+            raise ValueError(
+                f"Package {self.name} lacks test files ({', '.join(missing[:3])}"
+                f"{', ...' if len(missing) > 3 else ''}); use a full package with "
+                "generated tests (e.g. the Linux one) or run doall.sh first."
+            )
 
         self.groups: list[PolygonGroup] = []
         for group in testset.findall("groups/group"):

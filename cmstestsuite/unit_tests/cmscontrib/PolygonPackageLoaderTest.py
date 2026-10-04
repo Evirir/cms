@@ -387,3 +387,10 @@ def test_multi_contest_loader_rejects_clashing_task_names(tmp_path: Path) -> Non
     )
     with pytest.raises(ValueError, match='task "dup"'):
         PolygonPackageMultiContestLoader(str(path), FakeFileCacher())
+
+
+def test_package_without_generated_tests_is_rejected(mixed_package: Path) -> None:
+    """A package whose tests were not generated gives a clear error."""
+    (mixed_package / "tests" / "02").unlink()
+    with pytest.raises(ValueError, match=r"lacks test files \(tests/02\)"):
+        PolygonPackage(str(mixed_package))
