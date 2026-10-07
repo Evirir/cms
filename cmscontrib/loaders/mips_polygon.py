@@ -87,7 +87,7 @@ OUTPUT_ONLY_ATTACHMENT_NAME = "attachment.zip"
 SAMPLES_ATTACHMENT_NAME = "samples.zip"
 CMS_CONF_PATH = os.path.join("files", "cms_conf.py")
 # Task arguments set on every task, overridable by ``general`` in cms_conf.py.
-DEFAULT_TASK_ARGS: Mapping[str, object] = {
+DEFAULT_TASK_ARGS: Mapping[str, str | int] = {
     "feedback_level": FEEDBACK_LEVEL_OI_RESTRICTED,
     "score_mode": SCORE_MODE_MAX_SUBTASK,
     "max_submission_number": 60,
@@ -222,7 +222,7 @@ class MIPSPolygon:
             name = group.get("name")
             if name is None:
                 raise ValueError("Group has no name.")
-            dependencies = []
+            dependencies: list[str] = []
             for dependency in group.findall("dependencies/dependency"):
                 dependency_group = dependency.get("group")
                 if dependency_group is None:
@@ -239,7 +239,7 @@ class MIPSPolygon:
 
         self.checker_path: str | None = None
         checker_source = root.find("assets/checker/source")
-        candidates = []
+        candidates: list[str] = []
         if checker_source is not None and checker_source.get("path"):
             candidates.append(os.path.join(path, checker_source.get("path")))
         candidates += [
@@ -467,7 +467,9 @@ class _MIPSPolygonTaskLoaderBase(TaskLoader):
         """Store content in the file cacher and return its digest."""
         return self.file_cacher.put_file_content(content, description)
 
-    def _task_args(self, name: str, title: str, get_statement: bool) -> dict:
+    def _task_args(
+        self, name: str, title: str, get_statement: bool
+    ) -> dict[str, object]:
         """Return the Task arguments shared by both task kinds.
 
         Args:
@@ -475,10 +477,10 @@ class _MIPSPolygonTaskLoaderBase(TaskLoader):
             title: Task title.
             get_statement: Whether to import the PDF statements.
         """
-        args: dict = {"name": name, "title": title}
+        args: dict[str, object] = {"name": name, "title": title}
         if get_statement:
-            args["statements"] = {}
-            args["primary_statements"] = []
+            statements: dict[str, Statement] = {}
+            primary_statements: list[str] = []
             for language, lang in LANGUAGE_MAP.items():
                 path = os.path.join(
                     self.path, "statements", ".pdf", language, "problem.pdf"
@@ -487,8 +489,10 @@ class _MIPSPolygonTaskLoaderBase(TaskLoader):
                     digest = self.file_cacher.put_file_from_path(
                         path, f"Statement for task {name} (lang: {lang})"
                     )
-                    args["statements"][lang] = Statement(lang, digest)
-                    args["primary_statements"].append(lang)
+                    statements[lang] = Statement(lang, digest)
+                    primary_statements.append(lang)
+            args["statements"] = statements
+            args["primary_statements"] = primary_statements
         return args
 
     def _samples_attachments(self, name: str) -> dict[str, Attachment]:
@@ -504,7 +508,7 @@ class _MIPSPolygonTaskLoaderBase(TaskLoader):
         if not tests:
             return {}
         width = max(2, len(str(len(tests))))
-        samples = {}
+        samples: dict[str, bytes] = {}
         for i, test in enumerate(tests, start=1):
             sample_id = str(i).zfill(width)
             samples[f"input.{sample_id}.txt"] = _read_test_file(test.input_path)
@@ -512,7 +516,7 @@ class _MIPSPolygonTaskLoaderBase(TaskLoader):
         digest = self._put(_zip_bytes(samples), f"Samples for task {name}")
         return {SAMPLES_ATTACHMENT_NAME: Attachment(SAMPLES_ATTACHMENT_NAME, digest)}
 
-    def _apply_general_conf(self, args: dict) -> None:
+    def _apply_general_conf(self, args: dict[str, object]) -> None:
         """Apply the defaults, then the ``general`` dict of ``files/cms_conf.py``."""
         args.update(DEFAULT_TASK_ARGS)
         conf = self.package.conf
@@ -585,7 +589,7 @@ class MIPSPolygonBatchTaskLoader(_MIPSPolygonTaskLoaderBase):
         task = Task(**args)
 
         managers, evaluation = self._checker_managers(name)
-        testcases = {}
+        testcases: dict[str, Testcase] = {}
         for test in package.tests:
             codename = package.batch_codename(test)
             input_digest = self._put(
@@ -649,15 +653,16 @@ class MIPSPolygonOutputOnlyTaskLoader(_MIPSPolygonTaskLoaderBase):
             for c, t in zip(codenames, tests)
         }
         digest = self._put(_zip_bytes(inputs), f"OutputOnly inputs for task {name}")
-        args["attachments"] = self._samples_attachments(name)
-        args["attachments"][OUTPUT_ONLY_ATTACHMENT_NAME] = Attachment(
+        attachments = self._samples_attachments(name)
+        attachments[OUTPUT_ONLY_ATTACHMENT_NAME] = Attachment(
             OUTPUT_ONLY_ATTACHMENT_NAME, digest
         )
+        args["attachments"] = attachments
         self._apply_general_conf(args)
         task = Task(**args)
 
         managers, evaluation = self._checker_managers(name)
-        testcases = {}
+        testcases: dict[str, Testcase] = {}
         for codename, test in zip(codenames, tests):
             input_digest = self._put(
                 _read_test_file(test.input_path), f"Input {codename} for task {name}"
@@ -695,7 +700,7 @@ def _package_task_names(package: MIPSPolygon) -> list[str]:
         The Batch task name unless all the non-sample tests are OutputOnly,
         followed by the OutputOnly task name if there are OutputOnly tests.
     """
-    names = []
+    names: list[str] = []
     if package.has_batch_tests or not package.output_only_tests:
         names.append(package.name)
     if package.output_only_tests:
@@ -768,7 +773,9 @@ class MIPSPolygonContestLoader(ContestLoader):
         """
         return _package_task_loader(self.package, taskname, self.file_cacher)
 
-    def get_contest(self) -> tuple[Contest, list[str], list[dict]]:
+    def get_contest(
+        self,
+    ) -> tuple[Contest, list[str], list[dict[str, str | bool]]]:
         """See docstring in class ContestLoader."""
         group = Group(name="default")
         contest = Contest(
@@ -846,25 +853,27 @@ class MIPSPolygonMultiContestLoader(ContestLoader):
             self.task_packages[taskname], taskname, self.file_cacher
         )
 
-    def _participations(self) -> list[dict]:
+    def _participations(self) -> list[dict[str, str | bool]]:
         """Read the participations from the optional ``contestants.txt``."""
         users_path = os.path.join(self.path, "contestants.txt")
         if not os.path.exists(users_path):
             return []
-        participations = []
+        participations: list[dict[str, str | bool]] = []
         with open(users_path, encoding="utf-8") as users_file:
             for line in users_file:
                 fields = [field.strip() for field in line.split(";")]
                 if not fields[0]:
                     continue
-                participation: dict = {"username": fields[0]}
+                participation: dict[str, str | bool] = {"username": fields[0]}
                 if len(fields) > 1 and fields[1]:
                     participation["password"] = build_password(fields[1])
                 participation["hidden"] = len(fields) > 4 and fields[4] == "1"
                 participations.append(participation)
         return participations
 
-    def get_contest(self) -> tuple[Contest, list[str], list[dict]]:
+    def get_contest(
+        self,
+    ) -> tuple[Contest, list[str], list[dict[str, str | bool]]]:
         """See docstring in class ContestLoader."""
         name = os.path.basename(os.path.normpath(self.path))
         names = self.root.findall("names/name")
