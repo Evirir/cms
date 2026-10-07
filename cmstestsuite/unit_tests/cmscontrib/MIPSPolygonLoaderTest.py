@@ -185,11 +185,13 @@ def test_contest_loader_creates_batch_and_output_only_tasks(
     loader = MIPSPolygonContestLoader(str(mixed_package), FakeFileCacher())
     contest, tasks, participations = loader.get_contest()
     assert contest.name == "sorting"
-    assert tasks == ["sorting", "sorting-oo"]
+    assert tasks == ["sorting-code", "sorting-output"]
     assert participations == []
-    assert isinstance(loader.get_task_loader("sorting"), MIPSPolygonBatchTaskLoader)
     assert isinstance(
-        loader.get_task_loader("sorting-oo"), MIPSPolygonOutputOnlyTaskLoader
+        loader.get_task_loader("sorting-code"), MIPSPolygonBatchTaskLoader
+    )
+    assert isinstance(
+        loader.get_task_loader("sorting-output"), MIPSPolygonOutputOnlyTaskLoader
     )
 
 
@@ -203,7 +205,7 @@ def test_contest_loader_creates_batch_and_output_only_tasks(
                 '<group name="s1-OO" points-policy="each-test"/>'
                 '<group name="s2-OO" points-policy="each-test"/>'
             ),
-            ["sorting-oo"],
+            ["sorting-output"],
         ),
         (
             [("samples", 0), ("s1", 100)],
@@ -211,7 +213,7 @@ def test_contest_loader_creates_batch_and_output_only_tasks(
                 '<group name="samples" points-policy="complete-group"/>'
                 '<group name="s1" points="100" points-policy="complete-group"/>'
             ),
-            ["sorting"],
+            ["sorting-code"],
         ),
     ],
 )
@@ -234,9 +236,9 @@ def test_batch_task(mixed_package: Path) -> None:
         get_statement=False
     )
     assert task is not None
-    assert task.name == "sorting"
+    assert task.name == "sorting-code"
     assert task.title == "Sorting (Code)"
-    assert task.submission_format == ["sorting.%l"]
+    assert task.submission_format == ["sorting-code.%l"]
     dataset = task.active_dataset
     assert dataset.task_type == "Batch"
     assert dataset.task_type_parameters == ["alone", ["", ""], "diff"]
@@ -260,7 +262,7 @@ def test_output_only_task(mixed_package: Path) -> None:
         get_statement=False
     )
     assert task is not None
-    assert task.name == "sorting-oo"
+    assert task.name == "sorting-output"
     assert task.title == "Sorting (Output)"
     assert task.submission_format == [
         "output_00.txt",
@@ -384,18 +386,18 @@ def test_multi_contest_loader_creates_tasks_for_every_problem(
     contest, tasks, participations = loader.get_contest()
     assert contest.name == "practice"
     assert contest.description == "Practice Contest"
-    assert tasks == ["beta", "beta-oo", "alpha"]
+    assert tasks == ["beta-code", "beta-output", "alpha-code"]
     assert participations == []
-    assert isinstance(loader.get_task_loader("beta"), MIPSPolygonBatchTaskLoader)
+    assert isinstance(loader.get_task_loader("beta-code"), MIPSPolygonBatchTaskLoader)
     assert isinstance(
-        loader.get_task_loader("beta-oo"), MIPSPolygonOutputOnlyTaskLoader
+        loader.get_task_loader("beta-output"), MIPSPolygonOutputOnlyTaskLoader
     )
-    alpha = loader.get_task_loader("alpha").get_task(get_statement=False)
+    alpha = loader.get_task_loader("alpha-code").get_task(get_statement=False)
     assert alpha is not None
-    assert alpha.name == "alpha"
+    assert alpha.name == "alpha-code"
     assert sorted(alpha.active_dataset.testcases) == ["1_samples", "2_s1"]
     with pytest.raises(ValueError, match="Unknown task"):
-        loader.get_task_loader("alpha-oo")
+        loader.get_task_loader("alpha-output")
 
 
 def test_multi_contest_loader_reads_contestants(contest_package: Path) -> None:
@@ -418,7 +420,7 @@ def test_multi_contest_loader_rejects_clashing_task_names(tmp_path: Path) -> Non
     write_package(
         path / "problems" / "second", BATCH_ONLY_TESTS, BATCH_ONLY_GROUPS, "dup"
     )
-    with pytest.raises(ValueError, match='task "dup"'):
+    with pytest.raises(ValueError, match='task "dup-code"'):
         MIPSPolygonMultiContestLoader(str(path), FakeFileCacher())
 
 

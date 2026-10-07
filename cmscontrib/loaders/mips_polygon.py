@@ -18,11 +18,12 @@
 
 The conversion follows polyconv (https://github.com/Evirir/polyconv):
 
-* The Batch task contains every Polygon test, with codenames such as
+* The Batch task (``<short-name>-code``) contains every Polygon test, with codenames such as
   ``07_s3`` (test number and group), and GroupMin score parameters that
   capture Polygon groups, their points policies and their dependencies.
 * Tests whose group name contains the OutputOnly substring (``OO`` by
-  default) also form a separate OutputOnly task, renumbered from ``00``,
+  default) also form a separate OutputOnly task (``<short-name>-output``),
+  renumbered from ``00``,
   with one GroupMin subtask per test and an ``attachment.zip`` holding the
   inputs as ``input_XX.txt``.
 * Tests of the samples group (``samples`` or ``sample`` by default) are
@@ -79,7 +80,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_OUTPUT_ONLY_GROUP_SUBSTRING = "OO"
 DEFAULT_SAMPLES_GROUPS = ("samples", "sample")
-OUTPUT_ONLY_TASK_SUFFIX = "-oo"
+BATCH_TASK_SUFFIX = "-code"
+OUTPUT_ONLY_TASK_SUFFIX = "-output"
 BATCH_TITLE_SUFFIX = " (Code)"
 OUTPUT_ONLY_TITLE_SUFFIX = " (Output)"
 TITLE_LANGUAGE = "english"
@@ -269,6 +271,11 @@ class MIPSPolygon:
         self.samples_groups: tuple[str, ...] = (
             (samples_group,) if samples_group is not None else DEFAULT_SAMPLES_GROUPS
         )
+
+    @property
+    def batch_name(self) -> str:
+        """Return the name of the Batch task."""
+        return self.name + BATCH_TASK_SUFFIX
 
     @property
     def output_only_name(self) -> str:
@@ -579,7 +586,7 @@ class MIPSPolygonBatchTaskLoader(_MIPSPolygonTaskLoaderBase):
     def get_task(self, get_statement: bool = True) -> Task | None:
         """See docstring in class TaskLoader."""
         package = self.package
-        name = package.name
+        name = package.batch_name
         logger.info("Loading Batch task %s.", name)
 
         args = self._task_args(name, package.title + BATCH_TITLE_SUFFIX, get_statement)
@@ -702,7 +709,7 @@ def _package_task_names(package: MIPSPolygon) -> list[str]:
     """
     names: list[str] = []
     if package.has_batch_tests or not package.output_only_tests:
-        names.append(package.name)
+        names.append(package.batch_name)
     if package.output_only_tests:
         names.append(package.output_only_name)
     return names
@@ -724,7 +731,7 @@ def _package_task_loader(
     Raises:
         ValueError: If the task name does not belong to the package.
     """
-    if taskname == package.name:
+    if taskname == package.batch_name:
         return MIPSPolygonBatchTaskLoader(package.path, file_cacher)
     if taskname == package.output_only_name:
         return MIPSPolygonOutputOnlyTaskLoader(package.path, file_cacher)
