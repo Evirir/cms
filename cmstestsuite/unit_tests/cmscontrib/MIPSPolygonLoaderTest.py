@@ -283,6 +283,38 @@ def test_output_only_task(mixed_package: Path) -> None:
         "input_02.txt",
     ]
     assert attachment.read("input_02.txt") == b"in4\n"
+    samples = zipfile.ZipFile(
+        io.BytesIO(cacher.files[task.attachments["samples.zip"].digest])
+    )
+    assert sorted(samples.namelist()) == ["input.01.txt", "output.01.txt"]
+
+
+@pytest.mark.parametrize(
+    ("group", "conf", "found"),
+    [
+        ("sample", None, True),
+        ("examples", None, False),
+        ("examples", 'SAMPLES_GROUP = "examples"\n', True),
+        ("sample", 'SAMPLES_GROUP = "examples"\n', False),
+    ],
+)
+def test_samples_group_names(
+    tmp_path: Path, group: str, conf: str | None, found: bool
+) -> None:
+    """``samples`` and ``sample`` are found by default; SAMPLES_GROUP overrides."""
+    groups = (
+        f'<group name="{group}" points-policy="complete-group"/>'
+        '<group name="s1-OO" points-policy="each-test"/>'
+    )
+    package = write_package(tmp_path, [(group, 0), ("s1-OO", 100)], groups)
+    if conf is not None:
+        (package / "files").mkdir()
+        (package / "files" / "cms_conf.py").write_text(conf, encoding="utf-8")
+    task = MIPSPolygonOutputOnlyTaskLoader(str(package), FakeFileCacher()).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    assert ("samples.zip" in task.attachments) == found
 
 
 def test_cms_conf_overrides_output_only_substring(mixed_package: Path) -> None:

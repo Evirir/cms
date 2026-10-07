@@ -25,8 +25,8 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
   default) also form a separate OutputOnly task, renumbered from ``00``,
   with one GroupMin subtask per test and an ``attachment.zip`` holding the
   inputs as ``input_XX.txt``.
-* Tests of the samples group (``samples`` by default) are attached to the
-  Batch task as ``samples.zip``.
+* Tests of the samples group (``samples`` or ``sample`` by default) are
+  attached to both tasks as ``samples.zip``.
 
 ``MIPSPolygonContestLoader`` creates a contest with both tasks (or only
 one of them when all the non-sample tests are OutputOnly, or none are).
@@ -78,7 +78,7 @@ from .base_loader import LANGUAGE_MAP, ContestLoader, TaskLoader
 logger = logging.getLogger(__name__)
 
 DEFAULT_OUTPUT_ONLY_GROUP_SUBSTRING = "OO"
-DEFAULT_SAMPLES_GROUP = "samples"
+DEFAULT_SAMPLES_GROUPS = ("samples", "sample")
 OUTPUT_ONLY_TASK_SUFFIX = "-oo"
 BATCH_TITLE_SUFFIX = " (Code)"
 OUTPUT_ONLY_TITLE_SUFFIX = " (Output)"
@@ -147,7 +147,7 @@ class MIPSPolygon:
         resource_paths: Paths to resource files (headers etc.).
         conf: The optional ``files/cms_conf.py`` module.
         output_only_substring: Group substring selecting OutputOnly tests.
-        samples_group: Exact name of the samples group.
+        samples_groups: Exact names accepted for the samples group.
     """
 
     def __init__(self, path: str):
@@ -265,8 +265,9 @@ class MIPSPolygon:
         )
         if not self.output_only_substring:
             raise ValueError("The OutputOnly group substring cannot be empty.")
-        self.samples_group: str = getattr(
-            self.conf, "SAMPLES_GROUP", DEFAULT_SAMPLES_GROUP
+        samples_group = getattr(self.conf, "SAMPLES_GROUP", None)
+        self.samples_groups: tuple[str, ...] = (
+            (samples_group,) if samples_group is not None else DEFAULT_SAMPLES_GROUPS
         )
 
     @property
@@ -282,13 +283,14 @@ class MIPSPolygon:
     @property
     def sample_tests(self) -> list[PolygonTest]:
         """Return the tests of the samples group."""
-        return [t for t in self.tests if t.group == self.samples_group]
+        return [t for t in self.tests if t.group in self.samples_groups]
 
     @property
     def has_batch_tests(self) -> bool:
         """Return whether some non-sample test is not OutputOnly."""
         return any(
-            self.output_only_substring not in t.group and t.group != self.samples_group
+            self.output_only_substring not in t.group
+            and t.group not in self.samples_groups
             for t in self.tests
         )
 
@@ -489,6 +491,27 @@ class _MIPSPolygonTaskLoaderBase(TaskLoader):
                     args["primary_statements"].append(lang)
         return args
 
+    def _samples_attachments(self, name: str) -> dict[str, Attachment]:
+        """Return ``samples.zip`` with the sample tests, if there are any.
+
+        Args:
+            name: Name of the task, used in the file descriptions.
+
+        Returns:
+            A dict mapping ``samples.zip`` to its attachment, or an empty dict.
+        """
+        tests = self.package.sample_tests
+        if not tests:
+            return {}
+        width = max(2, len(str(len(tests))))
+        samples = {}
+        for i, test in enumerate(tests, start=1):
+            sample_id = str(i).zfill(width)
+            samples[f"input.{sample_id}.txt"] = _read_test_file(test.input_path)
+            samples[f"output.{sample_id}.txt"] = _read_test_file(test.answer_path)
+        digest = self._put(_zip_bytes(samples), f"Samples for task {name}")
+        return {SAMPLES_ATTACHMENT_NAME: Attachment(SAMPLES_ATTACHMENT_NAME, digest)}
+
     def _apply_general_conf(self, args: dict) -> None:
         """Apply the defaults, then the ``general`` dict of ``files/cms_conf.py``."""
         args.update(DEFAULT_TASK_ARGS)
@@ -557,18 +580,7 @@ class MIPSPolygonBatchTaskLoader(_MIPSPolygonTaskLoaderBase):
 
         args = self._task_args(name, package.title + BATCH_TITLE_SUFFIX, get_statement)
         args["submission_format"] = [f"{name}.%l"]
-        args["attachments"] = {}
-        if package.sample_tests:
-            width = max(2, len(str(len(package.sample_tests))))
-            samples = {}
-            for i, test in enumerate(package.sample_tests, start=1):
-                sample_id = str(i).zfill(width)
-                samples[f"input.{sample_id}.txt"] = _read_test_file(test.input_path)
-                samples[f"output.{sample_id}.txt"] = _read_test_file(test.answer_path)
-            digest = self._put(_zip_bytes(samples), f"Samples for task {name}")
-            args["attachments"][SAMPLES_ATTACHMENT_NAME] = Attachment(
-                SAMPLES_ATTACHMENT_NAME, digest
-            )
+        args["attachments"] = self._samples_attachments(name)
         self._apply_general_conf(args)
         task = Task(**args)
 
@@ -637,9 +649,10 @@ class MIPSPolygonOutputOnlyTaskLoader(_MIPSPolygonTaskLoaderBase):
             for c, t in zip(codenames, tests)
         }
         digest = self._put(_zip_bytes(inputs), f"OutputOnly inputs for task {name}")
-        args["attachments"] = {
-            OUTPUT_ONLY_ATTACHMENT_NAME: Attachment(OUTPUT_ONLY_ATTACHMENT_NAME, digest)
-        }
+        args["attachments"] = self._samples_attachments(name)
+        args["attachments"][OUTPUT_ONLY_ATTACHMENT_NAME] = Attachment(
+            OUTPUT_ONLY_ATTACHMENT_NAME, digest
+        )
         self._apply_general_conf(args)
         task = Task(**args)
 
