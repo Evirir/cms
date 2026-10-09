@@ -55,6 +55,8 @@ PACKAGE_DATA = {
     ],
     "cmscontrib": [
         "loaders/polygon/testlib.h",
+        "loaders/mips_polygon_kit/*.*",
+        "loaders/mips_polygon_kit/code/*.*",
     ],
     "cmsranking": [
         "static/img/*.*",
