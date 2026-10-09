@@ -704,14 +704,14 @@ def _package_task_names(package: MIPSPolygon) -> list[str]:
         package: The parsed Polygon package.
 
     Returns:
-        The Batch task name unless all the non-sample tests are OutputOnly,
-        followed by the OutputOnly task name if there are OutputOnly tests.
+        The OutputOnly task name if there are OutputOnly tests, followed by
+        the Batch task name unless all the non-sample tests are OutputOnly.
     """
     names: list[str] = []
-    if package.has_batch_tests or not package.output_only_tests:
-        names.append(package.batch_name)
     if package.output_only_tests:
         names.append(package.output_only_name)
+    if package.has_batch_tests or not package.output_only_tests:
+        names.append(package.batch_name)
     return names
 
 

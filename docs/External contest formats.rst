@@ -200,7 +200,7 @@ Every task gets ``feedback_level = "oi_restricted"``, ``score_mode = "max_subtas
 
 The task title is the English problem name (or the first name if there is no English one), followed by `` (Code)`` for the Batch task and `` (Output)`` for the OutputOnly task.
 
-To import a Polygon **contest** package (:file:`contest.xml` and one full package per problem in :file:`problems/`), use the ``mips_polygon_contest`` loader instead. Each problem becomes one or two tasks as described above, in the order of :file:`contest.xml`; the contest is named after the package directory. As with ``polygon_contest``, an optional :file:`contestants.txt` lists participations of existing users, one per line as ``username;password;first_name;last_name;hidden``.
+To import a Polygon **contest** package (:file:`contest.xml` and one full package per problem in :file:`problems/`), use the ``mips_polygon_contest`` loader instead. Each problem becomes one or two tasks as described above, in the order of :file:`contest.xml`, with a problem's OutputOnly task right before its Batch task; the contest is named after the package directory. As with ``polygon_contest``, an optional :file:`contestants.txt` lists participations of existing users, one per line as ``username;password;first_name;last_name;hidden``.
 
 .. sourcecode:: bash
 

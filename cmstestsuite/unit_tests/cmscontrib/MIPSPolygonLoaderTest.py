@@ -185,7 +185,7 @@ def test_contest_loader_creates_batch_and_output_only_tasks(
     loader = MIPSPolygonContestLoader(str(mixed_package), FakeFileCacher())
     contest, tasks, participations = loader.get_contest()
     assert contest.name == "sorting"
-    assert tasks == ["sorting-code", "sorting-output"]
+    assert tasks == ["sorting-output", "sorting-code"]
     assert participations == []
     assert isinstance(
         loader.get_task_loader("sorting-code"), MIPSPolygonBatchTaskLoader
@@ -381,12 +381,12 @@ def contest_package(tmp_path: Path) -> Path:
 def test_multi_contest_loader_creates_tasks_for_every_problem(
     contest_package: Path,
 ) -> None:
-    """Every problem yields its tasks, in contest.xml order."""
+    """Every problem yields its tasks, in contest.xml order, Output first."""
     loader = MIPSPolygonMultiContestLoader(str(contest_package), FakeFileCacher())
     contest, tasks, participations = loader.get_contest()
     assert contest.name == "practice"
     assert contest.description == "Practice Contest"
-    assert tasks == ["beta-code", "beta-output", "alpha-code"]
+    assert tasks == ["beta-output", "beta-code", "alpha-code"]
     assert participations == []
     assert isinstance(loader.get_task_loader("beta-code"), MIPSPolygonBatchTaskLoader)
     assert isinstance(
