@@ -51,11 +51,12 @@ import logging
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from types import ModuleType
 
@@ -87,6 +88,17 @@ OUTPUT_ONLY_TITLE_SUFFIX = " (Output)"
 TITLE_LANGUAGE = "english"
 OUTPUT_ONLY_ATTACHMENT_NAME = "attachment.zip"
 SAMPLES_ATTACHMENT_NAME = "samples.zip"
+# Contestant kit added to attachment.zip, see mips_polygon_kit/README.md.
+KIT_PACKAGE_PATH = "mips_polygon_kit"
+KIT_FILES = (
+    "README.md",
+    "run.sh",
+    "run.bat",
+    "code/solution.cpp",
+    "code/solution.py",
+)
+KIT_EXECUTABLES = frozenset({"run.sh"})
+KIT_INPUTS_DIR = "inputs"
 CMS_CONF_PATH = os.path.join("files", "cms_conf.py")
 # Task arguments set on every task, overridable by ``general`` in cms_conf.py.
 DEFAULT_TASK_ARGS: Mapping[str, str | int] = {
@@ -435,17 +447,44 @@ def _read_test_file(path: str) -> bytes:
         return file.read().replace(b"\r\n", b"\n")
 
 
-def _zip_bytes(files: Mapping[str, bytes]) -> bytes:
+def _zip_bytes(files: Mapping[str, bytes], executables: Collection[str] = ()) -> bytes:
     """Return a zip archive containing the given files.
 
     Args:
         files: Mapping from archive member names to contents.
+        executables: Member names to mark as executable on Unix.
     """
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         for name, content in files.items():
-            archive.writestr(name, content)
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            mode = 0o755 if name in executables else 0o644
+            info.external_attr = (stat.S_IFREG | mode) << 16
+            archive.writestr(info, content)
     return buffer.getvalue()
+
+
+def _output_only_kit(inputs: Mapping[str, bytes]) -> bytes:
+    """Return attachment.zip for an OutputOnly task.
+
+    It contains the inputs in ``inputs/``, plus templates, scripts and a
+    README that help contestants make the output zip to submit.
+
+    Args:
+        inputs: Mapping from input file names (e.g. ``input_00.txt``) to
+            their contents.
+    """
+    kit = importlib.resources.files("cmscontrib.loaders").joinpath(KIT_PACKAGE_PATH)
+    files: dict[str, bytes] = {}
+    for name in KIT_FILES:
+        content = kit.joinpath(name).read_bytes().replace(b"\r\n", b"\n")
+        if name.endswith(".bat"):
+            content = content.replace(b"\n", b"\r\n")
+        files[name] = content
+    for name, content in inputs.items():
+        files[f"{KIT_INPUTS_DIR}/{name}"] = content
+    return _zip_bytes(files, KIT_EXECUTABLES)
 
 
 class _MIPSPolygonTaskLoaderBase(TaskLoader):
@@ -659,7 +698,9 @@ class MIPSPolygonOutputOnlyTaskLoader(_MIPSPolygonTaskLoaderBase):
             f"input_{c}.txt": _read_test_file(t.input_path)
             for c, t in zip(codenames, tests)
         }
-        digest = self._put(_zip_bytes(inputs), f"OutputOnly inputs for task {name}")
+        digest = self._put(
+            _output_only_kit(inputs), f"OutputOnly inputs for task {name}"
+        )
         attachments = self._samples_attachments(name)
         attachments[OUTPUT_ONLY_ATTACHMENT_NAME] = Attachment(
             OUTPUT_ONLY_ATTACHMENT_NAME, digest

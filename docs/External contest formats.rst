@@ -189,7 +189,7 @@ The ``mips_polygon`` contest loader, and the ``mips_polygon_batch`` and ``mips_p
     cmsImportContest -L mips_polygon -i path/to/package
 
 - The Batch task (short name with a ``-code`` suffix) contains every test, with codenames such as ``07_s3`` (test number and group), and GroupMin score parameters built from the Polygon groups, their ``complete-group``/``each-test`` points policies and their dependencies. 
-- Tests whose group name contains ``OO`` also form an OutputOnly task (short name with an ``-output`` suffix), renumbered from ``00``, with one GroupMin subtask per test and the inputs attached as :file:`attachment.zip`.
+- Tests whose group name contains ``OO`` also form an OutputOnly task (short name with an ``-output`` suffix), renumbered from ``00``, with one GroupMin subtask per test. Its :file:`attachment.zip` is a contestant kit: the inputs in :file:`inputs/`, C++ and Python templates in :file:`code/`, a README, and :file:`run.sh`/:file:`run.bat` scripts that run any command on every input and zip the outputs into :file:`output.zip` for submission.
 - Tests of the samples group (``samples`` or ``sample``, or ``SAMPLES_GROUP`` from :file:`cms_conf.py`) are attached to both tasks as :file:`samples.zip`.
 - The contest loader creates only the OutputOnly task if all non-sample tests are OutputOnly, and only the Batch task if no group contains ``OO``.
 - The checker is compiled with CMS's patched :file:`testlib.h`, together with the package resources (e.g. headers it includes).

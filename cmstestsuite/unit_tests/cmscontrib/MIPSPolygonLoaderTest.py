@@ -18,6 +18,8 @@
 
 import io
 import re
+import shutil
+import subprocess
 import zipfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -280,15 +282,70 @@ def test_output_only_task(mixed_package: Path) -> None:
         io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
     )
     assert sorted(attachment.namelist()) == [
-        "input_00.txt",
-        "input_01.txt",
-        "input_02.txt",
+        "README.md",
+        "code/solution.cpp",
+        "code/solution.py",
+        "inputs/input_00.txt",
+        "inputs/input_01.txt",
+        "inputs/input_02.txt",
+        "run.bat",
+        "run.sh",
     ]
-    assert attachment.read("input_02.txt") == b"in4\n"
+    assert attachment.read("inputs/input_02.txt") == b"in4\n"
+    assert (attachment.getinfo("run.sh").external_attr >> 16) & 0o111
+    assert b"\r\n" in attachment.read("run.bat")
+    assert b"\r\n" not in attachment.read("run.sh")
     samples = zipfile.ZipFile(
         io.BytesIO(cacher.files[task.attachments["samples.zip"].digest])
     )
     assert sorted(samples.namelist()) == ["input.01.txt", "output.01.txt"]
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+@pytest.mark.parametrize(
+    ("args", "solution"),
+    [
+        (["cat"], None),
+        (["py"], ("code/solution.py", "print(input())\n")),
+        (
+            ["cpp"],
+            (
+                "code/solution.cpp",
+                (
+                    "#include <iostream>\n#include <string>\n"
+                    "int main()\n{\n    std::string s;\n    std::cin >> s;\n"
+                    '    std::cout << s << "\\n";\n}\n'
+                ),
+            ),
+        ),
+    ],
+)
+def test_output_only_kit_makes_submission_zip(
+    mixed_package: Path,
+    tmp_path: Path,
+    args: Sequence[str],
+    solution: tuple[str, str] | None,
+) -> None:
+    if args == ["cpp"] and shutil.which("g++") is None:
+        pytest.skip("needs g++")
+    cacher = FakeFileCacher()
+    task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    kit = tmp_path / "kit"
+    with zipfile.ZipFile(
+        io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
+    ) as attachment:
+        attachment.extractall(kit)
+    if solution is not None:
+        (kit / solution[0]).write_text(solution[1])
+
+    subprocess.run(["bash", str(kit / "run.sh"), *args], check=True, cwd=tmp_path)
+
+    with zipfile.ZipFile(kit / "output.zip") as output:
+        assert sorted(output.namelist()) == task.submission_format
+        assert output.read("output_02.txt") == b"in4\n"
 
 
 @pytest.mark.parametrize(
