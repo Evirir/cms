@@ -29,11 +29,10 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
 * Tests of the samples group (``samples`` or ``sample`` by default) are
   attached to both tasks as ``samples.zip``.
 
-``MIPSPolygonContestLoader`` creates a contest with both tasks (or only
-one of them when all the non-sample tests are OutputOnly, or none are).
-``MIPSPolygonMultiContestLoader`` does the same for every problem of a
-Polygon contest package (``contest.xml`` and ``problems/*``).
-The task loaders can also be used on their own with ``cmsImportTask``.
+``MIPSPolygonMultiContestLoader`` imports a Polygon contest package
+(``contest.xml`` and ``problems/*``), creating both tasks for every problem
+(or only one of them when all the non-sample tests are OutputOnly, or none
+are). The task loaders import a single problem with ``cmsImportTask``.
 
 An optional ``files/cms_conf.py`` in the package may define:
 
@@ -779,68 +778,12 @@ def _package_task_loader(
     raise ValueError(f'Unknown task "{taskname}".')
 
 
-class MIPSPolygonContestLoader(ContestLoader):
-    """Load a single Polygon full package as a contest with one or two tasks.
-
-    The Batch task is created unless all the non-sample tests are
-    OutputOnly; the OutputOnly task is created if some group contains the
-    OutputOnly substring.
-    """
-
-    short_name = "mips_polygon"
-    description = "Polygon full package as a contest (Batch + OutputOnly tasks)"
-
-    def __init__(self, path: str, file_cacher: FileCacher):
-        """Initialize the loader.
-
-        Args:
-            path: Root directory of the Polygon full package.
-            file_cacher: The file cacher used to store files.
-        """
-        super().__init__(path, file_cacher)
-        self.package = MIPSPolygon(path)
-
-    @staticmethod
-    def detect(path: str) -> bool:
-        """Never autodetect, to avoid clashing with polygon_task."""
-        return False
-
-    def contest_has_changed(self) -> bool:
-        """See docstring in class ContestLoader."""
-        return True
-
-    def task_names(self) -> list[str]:
-        """Return the names of the tasks created from the package."""
-        return _package_task_names(self.package)
-
-    def get_task_loader(self, taskname: str) -> TaskLoader:
-        """See docstring in class ContestLoader.
-
-        Raises:
-            ValueError: If the task name does not belong to the package.
-        """
-        return _package_task_loader(self.package, taskname, self.file_cacher)
-
-    def get_contest(
-        self,
-    ) -> tuple[Contest, list[str], list[dict[str, str | bool]]]:
-        """See docstring in class ContestLoader."""
-        group = Group(name="default")
-        contest = Contest(
-            name=self.package.name,
-            description=self.package.title,
-            groups=[group],
-            main_group=group,
-        )
-        return contest, self.task_names(), []
-
-
 class MIPSPolygonMultiContestLoader(ContestLoader):
     """Load a Polygon contest package, converting each problem like polyconv.
 
     The package contains ``contest.xml`` and one full package per problem in
-    ``problems/<short-name>``. Each problem becomes one or two tasks, as with
-    ``MIPSPolygonContestLoader``, in the order of ``contest.xml``.
+    ``problems/<short-name>``. Each problem becomes one or two tasks (see the
+    module docstring), in the order of ``contest.xml``.
 
     Like ``polygon_contest``, an optional ``contestants.txt`` holds one
     participation per line as ``username;password;first_name;last_name;hidden``

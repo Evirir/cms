@@ -22,7 +22,6 @@ from .base_loader import BaseLoader
 from .italy_yaml import YamlLoader
 from .mips_polygon import (
     MIPSPolygonBatchTaskLoader,
-    MIPSPolygonContestLoader,
     MIPSPolygonMultiContestLoader,
     MIPSPolygonOutputOnlyTaskLoader,
 )
@@ -39,8 +38,7 @@ LOADERS: dict[str, type[BaseLoader]] = dict(
         PolygonContestLoader,
         MIPSPolygonBatchTaskLoader,
         MIPSPolygonOutputOnlyTaskLoader,
-        MIPSPolygonContestLoader,
-        MIPSPolygonMultiContestLoader,
+            MIPSPolygonMultiContestLoader,
         TpsTaskLoader,
     ]
 )

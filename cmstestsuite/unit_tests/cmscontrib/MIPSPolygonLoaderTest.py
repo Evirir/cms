@@ -29,9 +29,10 @@ import pytest
 from cmscontrib.loaders.mips_polygon import (
     MIPSPolygon,
     MIPSPolygonBatchTaskLoader,
-    MIPSPolygonContestLoader,
     MIPSPolygonMultiContestLoader,
     MIPSPolygonOutputOnlyTaskLoader,
+    _package_task_loader,
+    _package_task_names,
 )
 
 # (group, points) for each test, in Polygon order.
@@ -180,21 +181,21 @@ def test_group_regex_does_not_match_longer_group_names(tmp_path: Path) -> None:
     ]
 
 
-def test_contest_loader_creates_batch_and_output_only_tasks(
-    mixed_package: Path,
-) -> None:
-    """A package with both kinds of tests yields two tasks."""
-    loader = MIPSPolygonContestLoader(str(mixed_package), FakeFileCacher())
-    contest, tasks, participations = loader.get_contest()
-    assert contest.name == "sorting"
-    assert tasks == ["sorting-output", "sorting-code"]
-    assert participations == []
+def test_package_creates_batch_and_output_only_tasks(mixed_package: Path) -> None:
+    """A package with both kinds of tests yields two tasks, Output first."""
+    package = MIPSPolygon(str(mixed_package))
+    cacher = FakeFileCacher()
+    assert _package_task_names(package) == ["sorting-output", "sorting-code"]
     assert isinstance(
-        loader.get_task_loader("sorting-code"), MIPSPolygonBatchTaskLoader
+        _package_task_loader(package, "sorting-code", cacher),
+        MIPSPolygonBatchTaskLoader,
     )
     assert isinstance(
-        loader.get_task_loader("sorting-output"), MIPSPolygonOutputOnlyTaskLoader
+        _package_task_loader(package, "sorting-output", cacher),
+        MIPSPolygonOutputOnlyTaskLoader,
     )
+    with pytest.raises(ValueError, match="Unknown task"):
+        _package_task_loader(package, "sorting", cacher)
 
 
 @pytest.mark.parametrize(
@@ -219,7 +220,7 @@ def test_contest_loader_creates_batch_and_output_only_tasks(
         ),
     ],
 )
-def test_contest_loader_creates_one_task(
+def test_package_creates_one_task(
     tmp_path: Path,
     tests: Sequence[tuple[str, int]],
     groups_xml: str,
@@ -227,8 +228,7 @@ def test_contest_loader_creates_one_task(
 ) -> None:
     """All-OutputOnly or all-Batch packages yield a single task."""
     path = write_package(tmp_path, tests, groups_xml)
-    _, tasks, _ = MIPSPolygonContestLoader(str(path), FakeFileCacher()).get_contest()
-    assert tasks == expected
+    assert _package_task_names(MIPSPolygon(str(path))) == expected
 
 
 def test_batch_task(mixed_package: Path) -> None:
