@@ -368,24 +368,25 @@ class MIPSPolygon:
         dependencies = self.transitive_dependencies()
         params: list[list[float | str]] = []
         for group in self.groups:
-            if group.points_policy == "complete-group":
-                params.append(
-                    [_points(group.points), _groups_regex(dependencies[group.name])]
-                )
-                continue
-            if group.points_policy != "each-test":
-                raise ValueError(
-                    f'Group "{group.name}" uses unsupported points policy '
-                    f'"{group.points_policy}".'
-                )
-            prereqs = [g for g in dependencies[group.name] if g != group.name]
-            for test in self.tests:
-                if test.group != group.name:
-                    continue
-                regex = re.escape(self.batch_codename(test)) + "$"
-                if prereqs:
-                    regex += "|" + _groups_regex(prereqs)
-                params.append([_points(test.points), regex])
+            match group.points_policy:
+                case "complete-group":
+                    params.append(
+                        [_points(group.points), _groups_regex(dependencies[group.name])]
+                    )
+                case "each-test":
+                    prereqs = [g for g in dependencies[group.name] if g != group.name]
+                    for test in self.tests:
+                        if test.group != group.name:
+                            continue
+                        regex = re.escape(self.batch_codename(test)) + "$"
+                        if prereqs:
+                            regex += "|" + _groups_regex(prereqs)
+                        params.append([_points(test.points), regex])
+                case _:
+                    raise ValueError(
+                        f'Group "{group.name}" uses unsupported points policy '
+                        f'"{group.points_policy}".'
+                    )
         return params
 
     def output_only_score_params(self) -> list[list[float | int]]:
@@ -454,10 +455,16 @@ def _zip_bytes(files: Mapping[str, bytes], executables: Collection[str] = ()) ->
         executables: Member names to mark as executable on Unix.
     """
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(buffer, "w") as archive:
         for name, content in files.items():
+            # The earliest time a zip can store, instead of now: the same files
+            # always give the same bytes, so re-imports reuse the stored file.
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            # writestr() takes the compression from ZipInfo, which defaults to
+            # none, not from ZipFile.
             info.compress_type = zipfile.ZIP_DEFLATED
+            # The high 16 bits are the Unix file type and permissions, which
+            # unzip restores, so run.sh stays executable.
             mode = 0o755 if name in executables else 0o644
             info.external_attr = (stat.S_IFREG | mode) << 16
             archive.writestr(info, content)
