@@ -367,7 +367,9 @@ class MIPSPolygon:
         """
         dependencies = self.transitive_dependencies()
         params: list[list[float | str]] = []
-        for group in self.groups:
+        # Samples first, so they are subtask 0; Polygon lists groups by name.
+        groups = sorted(self.groups, key=lambda g: g.name not in self.samples_groups)
+        for group in groups:
             match group.points_policy:
                 case "complete-group":
                     params.append(

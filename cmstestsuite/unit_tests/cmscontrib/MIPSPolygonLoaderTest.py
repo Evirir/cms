@@ -181,6 +181,25 @@ def test_group_regex_does_not_match_longer_group_names(tmp_path: Path) -> None:
     ]
 
 
+def test_samples_are_subtask_zero(tmp_path: Path) -> None:
+    """The samples group is subtask 0 even when Polygon lists it last."""
+    package = MIPSPolygon(
+        str(
+            write_package(
+                tmp_path,
+                [("samples", 0), ("s1", 100)],
+                '<group name="s1" points="100" points-policy="complete-group"/>'
+                '<group name="samples" points="0" points-policy="complete-group"/>',
+            )
+        )
+    )
+    codenames = [package.batch_codename(t) for t in package.tests]
+    assert [matching(p[1], codenames) for p in package.batch_score_params()] == [
+        ["1_samples"],
+        ["2_s1"],
+    ]
+
+
 def test_package_creates_batch_and_output_only_tasks(mixed_package: Path) -> None:
     """A package with both kinds of tests yields two tasks, Output first."""
     package = MIPSPolygon(str(mixed_package))

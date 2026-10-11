@@ -189,7 +189,7 @@ The ``mips_polygon_batch`` and ``mips_polygon_output_only`` task loaders import 
     cmsImportTask -L mips_polygon_batch path/to/package
     cmsImportTask -L mips_polygon_output_only path/to/package
 
-- The Batch task (short name with a ``-code`` suffix) contains every test, with codenames such as ``07_s3`` (test number and group), and GroupMin score parameters built from the Polygon groups, their ``complete-group``/``each-test`` points policies and their dependencies. 
+- The Batch task (short name with a ``-code`` suffix) contains every test, with codenames such as ``07_s3`` (test number and group), and GroupMin score parameters built from the Polygon groups, their ``complete-group``/``each-test`` points policies and their dependencies. The samples group is always subtask 0.
 - Tests whose group name contains ``OO`` also form an OutputOnly task (short name with an ``-output`` suffix), renumbered from ``00``, with one GroupMin subtask per test. Its :file:`attachment.zip` is a contestant kit: the inputs in :file:`inputs/`, C++ and Python templates in :file:`code/`, a README, and :file:`run.sh`/:file:`run.bat` scripts that run any command on every input and zip the outputs into :file:`output.zip` for submission.
 - Tests of the samples group (``samples`` or ``sample``, or ``SAMPLES_GROUP`` from :file:`cms_conf.py`) are attached to both tasks as :file:`samples.zip`.
 - The contest loader creates only the OutputOnly task of a problem if all non-sample tests are OutputOnly, and only the Batch task if no group contains ``OO``.
