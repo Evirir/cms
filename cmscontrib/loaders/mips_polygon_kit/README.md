@@ -43,4 +43,6 @@ inputs, and each one is scored on its own.
 - If the solution crashes on an input, the script warns you and keeps going,
   so the other outputs still get submitted.
 - The C++ option needs `g++` on your `PATH`, and the Python option needs
-  `python3` (Linux/macOS) or `py`/`python` (Windows).
+  `python3` (Linux/macOS) or `py`/`python` (Windows). C++ is compiled with
+  the same flags as CMS's C++20 (`-DEVAL -std=gnu++20 -O2 -pipe -static -s`;
+  not static on macOS).
