@@ -21,6 +21,8 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
 * The Batch task (``<short-name>-code``) contains every Polygon test, with codenames such as
   ``07_s3`` (test number and group), and GroupMin score parameters that
   capture Polygon groups, their points policies and their dependencies.
+  OutputOnly groups are not subtasks there (their points belong to the
+  OutputOnly task), but subtasks that depend on them include their tests.
 * Tests whose group name contains the OutputOnly substring (``OO`` by
   default) also form a separate OutputOnly task (``<short-name>-output``),
   renumbered from ``00`` after the samples, with one GroupMin subtask per
@@ -383,9 +385,11 @@ class MIPSPolygon:
         """Return GroupMin parameters for the Batch task.
 
         The samples are subtask 0, as one subtask whatever their points
-        policy. Like polyconv, other ``complete-group`` groups become one
-        subtask covering the group and its prerequisites; ``each-test`` groups
-        become one subtask per test, also covering the group's prerequisites.
+        policy. OutputOnly groups are scored only in the OutputOnly task, so
+        they are not subtasks here, but other groups still depend on them.
+        Like polyconv, ``complete-group`` groups become one subtask covering
+        the group and its prerequisites; ``each-test`` groups become one
+        subtask per test, also covering the group's prerequisites.
 
         Raises:
             ValueError: If a group uses an unsupported points policy.
@@ -396,7 +400,10 @@ class MIPSPolygon:
             [_points(self.samples_points), _groups_regex(sample_groups)]
         ]
         for group in self.groups:
-            if group.name in self.samples_groups:
+            if (
+                group.name in self.samples_groups
+                or self.output_only_substring in group.name
+            ):
                 continue
             match group.points_policy:
                 case "complete-group":

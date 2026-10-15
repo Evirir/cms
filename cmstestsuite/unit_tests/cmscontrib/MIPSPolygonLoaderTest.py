@@ -151,12 +151,9 @@ def test_batch_score_params_follow_groups_and_dependencies(
     ]
 
     params = package.batch_score_params()
-    assert [p[0] for p in params] == [0, 5, 5, 5, 20, 65]
+    assert [p[0] for p in params] == [0, 20, 65]
     assert [matching(p[1], codenames) for p in params] == [
         ["1_samples"],
-        ["2_s1-OO"],
-        ["3_s2-OO"],
-        ["4_s2-OO"],
         ["2_s1-OO", "5_s3", "6_s3"],
         ["2_s1-OO", "5_s3", "6_s3", "7_s4"],
     ]
@@ -178,7 +175,6 @@ def test_group_regex_does_not_match_longer_group_names(tmp_path: Path) -> None:
     codenames = [package.batch_codename(t) for t in package.tests]
     assert [matching(p[1], codenames) for p in package.batch_score_params()] == [
         ["1_sample"],
-        ["2_s3-OO"],
         ["3_s3"],
     ]
 
@@ -216,10 +212,9 @@ def test_multiple_samples_are_one_subtask(tmp_path: Path, policy: str) -> None:
     package = MIPSPolygon(str(path))
     codenames = [package.batch_codename(t) for t in package.tests]
     params = package.batch_score_params()
-    assert [p[0] for p in params] == [0, 40, 60]
+    assert [p[0] for p in params] == [0, 60]
     assert [matching(p[1], codenames) for p in params] == [
         ["1_sample", "2_sample"],
-        ["3_s1-OO"],
         ["1_sample", "2_sample", "4_s2"],
     ]
     assert package.output_only_codenames() == ["00", "01", "02"]
