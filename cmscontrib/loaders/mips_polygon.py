@@ -23,6 +23,8 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
   capture Polygon groups, their points policies and their dependencies.
   OutputOnly groups are not subtasks there (their points belong to the
   OutputOnly task), but subtasks that depend on them include their tests.
+  Other 0-point groups and tests are helpers: they are not subtasks
+  either, only part of the subtasks that depend on them.
 * Tests whose group name contains the OutputOnly substring (``OO`` by
   default) also form a separate OutputOnly task (``<short-name>-output``),
   renumbered from ``01``, with one GroupMin subtask per test and an
@@ -390,8 +392,10 @@ class MIPSPolygon:
         """Return GroupMin parameters for the Batch task.
 
         The samples are subtask 0, as one subtask whatever their points
-        policy. OutputOnly groups are scored only in the OutputOnly task, so
-        they are not subtasks here, but other groups still depend on them.
+        policy. Other 0-point groups and tests are helpers that other groups
+        depend on, so they are not subtasks themselves. OutputOnly groups are
+        scored only in the OutputOnly task, so they are not subtasks here,
+        but other groups still depend on them.
         Like polyconv, ``complete-group`` groups become one subtask covering
         the group and its prerequisites; ``each-test`` groups become one
         subtask per test, also covering the group's prerequisites.
@@ -412,13 +416,15 @@ class MIPSPolygon:
                 continue
             match group.points_policy:
                 case "complete-group":
+                    if group.points == 0:
+                        continue
                     params.append(
                         [_points(group.points), _groups_regex(dependencies[group.name])]
                     )
                 case "each-test":
                     prereqs = [g for g in dependencies[group.name] if g != group.name]
                     for test in self.tests:
-                        if test.group != group.name:
+                        if test.group != group.name or test.points == 0:
                             continue
                         regex = re.escape(self.batch_codename(test)) + "$"
                         if prereqs:
@@ -434,6 +440,8 @@ class MIPSPolygon:
     def output_only_score_params(self) -> list[list[float | str]]:
         """Return the samples as subtask 0, then one subtask per OO test.
 
+        OO tests worth 0 points are not subtasks.
+
         Regexes, not test counts: GroupMin sorts codenames, which puts
         ``sample_XX`` after the numbers.
         """
@@ -444,6 +452,7 @@ class MIPSPolygon:
         params.extend(
             [_points(t.points), re.escape(c) + "$"]
             for c, t in zip(codenames, self.output_only_tests)
+            if t.points != 0
         )
         return params
 

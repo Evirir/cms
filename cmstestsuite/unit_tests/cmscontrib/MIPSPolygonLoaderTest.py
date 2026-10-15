@@ -222,6 +222,39 @@ def test_multiple_samples_are_one_subtask(tmp_path: Path, policy: str) -> None:
     assert package.output_only_score_params() == [[0, "sample_.*$"], [40, "01$"]]
 
 
+def test_zero_point_groups_are_not_subtasks(tmp_path: Path) -> None:
+    """0-point helper groups and tests are only part of the groups using them."""
+    path = write_package(
+        tmp_path,
+        [
+            ("samples", 0),
+            ("helper", 0),
+            ("s1", 30),
+            ("s2", 0),
+            ("s2", 30),
+            ("s3-OO", 0),
+            ("s3-OO", 40),
+        ],
+        '<group name="samples" points-policy="each-test"/>'
+        '<group name="helper" points-policy="complete-group"/>'
+        '<group name="s1" points="30" points-policy="complete-group">'
+        '<dependencies><dependency group="helper"/></dependencies></group>'
+        '<group name="s2" points-policy="each-test">'
+        '<dependencies><dependency group="helper"/></dependencies></group>'
+        '<group name="s3-OO" points-policy="each-test"/>',
+    )
+    package = MIPSPolygon(str(path))
+    codenames = [package.batch_codename(t) for t in package.tests]
+    params = package.batch_score_params()
+    assert [p[0] for p in params] == [0, 30, 30]
+    assert [matching(p[1], codenames) for p in params] == [
+        ["1_samples"],
+        ["2_helper", "3_s1"],
+        ["2_helper", "5_s2"],
+    ]
+    assert package.output_only_score_params() == [[0, "sample_.*$"], [40, "02$"]]
+
+
 def test_package_without_samples_is_rejected(tmp_path: Path) -> None:
     """A package must have a samples group with at least one test."""
     path = write_package(
