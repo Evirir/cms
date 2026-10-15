@@ -7,7 +7,7 @@ inputs, and each one is scored on its own.
 
 | Path | What it is |
 |---|---|
-| `inputs/` | The inputs, `input_00.txt`, `input_01.txt`, ..., starting with the samples |
+| `inputs/` | The samples `sample_input_01.txt`, ..., then the inputs `input_01.txt`, `input_02.txt`, ... |
 | `code/solution.cpp` | C++ template |
 | `code/solution.py` | Python template |
 | `run.sh` | Script for Linux and macOS |
@@ -27,14 +27,15 @@ inputs, and each one is scored on its own.
 
    For example, `./run.sh java Solution` or `run.bat node code\solution.js`.
    The command is run once per input, with the input on standard input.
-3. The script writes `outputs/output_00.txt`, `outputs/output_01.txt`, ... and
+3. The script writes `outputs/output_sample_01.txt`, ..., `outputs/output_01.txt`,
+   `outputs/output_02.txt`, ... and
    zips them into `output.zip`.
 4. In CMS, open the task, choose `output.zip` in the submission form and submit.
 
 ## Tips
 
-- Only run some inputs: `TESTS="00 03" ./run.sh cpp` on Linux/macOS, or
-  `set TESTS=00 03` and then `run.bat cpp` on Windows. The other files in
+- Only run some inputs: `TESTS="sample_01 03" ./run.sh cpp` on Linux/macOS, or
+  `set TESTS=sample_01 03` and then `run.bat cpp` on Windows. The other files in
   `outputs/` are kept, so you can use a different program for each input.
 - Made some outputs by hand? Put them in `outputs/` as `output_XX.txt` and run
   `./run.sh zip` or `run.bat zip` to only zip them.
@@ -63,6 +64,7 @@ Use whichever of these suits you:
    `run.bat path\to\solution.exe` or `./run.sh path/to/solution`.
 3. **No terminal at all:** run your program on each input yourself, for
    example in your IDE, and save each answer as `outputs/output_XX.txt` with
-   the same number as `inputs/input_XX.txt`. Then run `run.bat zip` or
+   the same number as `inputs/input_XX.txt` (`output_sample_XX.txt` for
+   `sample_input_XX.txt`). Then run `run.bat zip` or
    `./run.sh zip`, or zip the `output_XX.txt` files yourself. The files must
    be at the top of the zip, not inside a folder.

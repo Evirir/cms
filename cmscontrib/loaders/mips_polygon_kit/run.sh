@@ -7,7 +7,7 @@
 #   ./run.sh COMMAND...     run any command, e.g. ./run.sh java Solution
 #   ./run.sh zip            only zip the files already in outputs/
 #
-# Set TESTS to run only some inputs, e.g. TESTS="00 03" ./run.sh cpp
+# Set TESTS to run only some inputs, e.g. TESTS="sample_01 03" ./run.sh cpp
 # Outputs of the other inputs in outputs/ are kept. No compiler? See README.md.
 set -u
 
@@ -71,9 +71,11 @@ esac
 mkdir -p "$outputs_dir"
 failed=0
 if [ "${#cmd[@]}" -gt 0 ]; then
-    for input in "$inputs_dir/$in_prefix"*.txt; do
+    for input in "$inputs_dir/sample_$in_prefix"*.txt "$inputs_dir/$in_prefix"*.txt; do
+        [ -e "$input" ] || continue
+        # input_01 -> 01, sample_input_01 -> sample_01
         name="$(basename "$input" .txt)"
-        id="${name#"$in_prefix"}"
+        id="${name/"$in_prefix"/}"
         if [ -n "${TESTS:-}" ] && [[ " $TESTS " != *" $id "* ]]; then
             continue
         fi

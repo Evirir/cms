@@ -218,8 +218,8 @@ def test_multiple_samples_are_one_subtask(tmp_path: Path, policy: str) -> None:
         ["1_sample", "2_sample"],
         ["1_sample", "2_sample", "4_s2"],
     ]
-    assert package.output_only_codenames() == ["00", "01", "02"]
-    assert package.output_only_score_params() == [[0, 2], [40, 1]]
+    assert package.output_only_codenames() == ["sample_01", "sample_02", "01"]
+    assert package.output_only_score_params() == [[0, "sample_.*$"], [40, "01$"]]
 
 
 def test_package_without_samples_is_rejected(tmp_path: Path) -> None:
@@ -305,12 +305,15 @@ def test_batch_task(mixed_package: Path) -> None:
     samples = zipfile.ZipFile(
         io.BytesIO(cacher.files[task.attachments["samples.zip"].digest])
     )
-    assert sorted(samples.namelist()) == ["input.01.txt", "output.01.txt"]
-    assert samples.read("output.01.txt") == b"out1\n"
+    assert sorted(samples.namelist()) == [
+        "sample_input_01.txt",
+        "sample_output_01.txt",
+    ]
+    assert samples.read("sample_output_01.txt") == b"out1\n"
 
 
 def test_output_only_task(mixed_package: Path) -> None:
-    """The OutputOnly task has the samples, then the renumbered OO tests."""
+    """The OutputOnly task has the samples, then the OO tests renumbered from 01."""
     cacher = FakeFileCacher()
     task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
         get_statement=False
@@ -319,7 +322,7 @@ def test_output_only_task(mixed_package: Path) -> None:
     assert task.name == "sorting-output"
     assert task.title == "Sorting (Output)"
     assert task.submission_format == [
-        "output_00.txt",
+        "output_sample_01.txt",
         "output_01.txt",
         "output_02.txt",
         "output_03.txt",
@@ -327,9 +330,14 @@ def test_output_only_task(mixed_package: Path) -> None:
     dataset = task.active_dataset
     assert dataset.task_type == "OutputOnly"
     assert dataset.task_type_parameters == ["diff"]
-    assert dataset.score_type_parameters == [[0, 1], [5, 1], [5, 1], [5, 1]]
-    assert sorted(dataset.testcases) == ["00", "01", "02", "03"]
-    assert cacher.files[dataset.testcases["00"].output] == b"out1\n"
+    assert dataset.score_type_parameters == [
+        [0, "sample_.*$"],
+        [5, "01$"],
+        [5, "02$"],
+        [5, "03$"],
+    ]
+    assert sorted(dataset.testcases) == ["01", "02", "03", "sample_01"]
+    assert cacher.files[dataset.testcases["sample_01"].output] == b"out1\n"
     assert cacher.files[dataset.testcases["01"].output] == b"out2\n"
 
     attachment = zipfile.ZipFile(
@@ -339,14 +347,14 @@ def test_output_only_task(mixed_package: Path) -> None:
         "README.md",
         "code/solution.cpp",
         "code/solution.py",
-        "inputs/input_00.txt",
         "inputs/input_01.txt",
         "inputs/input_02.txt",
         "inputs/input_03.txt",
+        "inputs/sample_input_01.txt",
         "run.bat",
         "run.sh",
     ]
-    assert attachment.read("inputs/input_00.txt") == b"in1\n"
+    assert attachment.read("inputs/sample_input_01.txt") == b"in1\n"
     assert attachment.read("inputs/input_03.txt") == b"in4\n"
     assert (attachment.getinfo("run.sh").external_attr >> 16) & 0o111
     assert b"\r\n" in attachment.read("run.bat")
@@ -354,7 +362,10 @@ def test_output_only_task(mixed_package: Path) -> None:
     samples = zipfile.ZipFile(
         io.BytesIO(cacher.files[task.attachments["samples.zip"].digest])
     )
-    assert sorted(samples.namelist()) == ["input.01.txt", "output.01.txt"]
+    assert sorted(samples.namelist()) == [
+        "sample_input_01.txt",
+        "sample_output_01.txt",
+    ]
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
@@ -400,7 +411,7 @@ def test_output_only_kit_makes_submission_zip(
     subprocess.run(["bash", str(kit / "run.sh"), *args], check=True, cwd=tmp_path)
 
     with zipfile.ZipFile(kit / "output.zip") as output:
-        assert sorted(output.namelist()) == task.submission_format
+        assert sorted(output.namelist()) == sorted(task.submission_format)
         assert output.read("output_03.txt") == b"in4\n"
 
 
@@ -464,7 +475,7 @@ def test_samples_group_names(
     )
     assert task is not None
     assert "samples.zip" in task.attachments
-    assert task.active_dataset.score_type_parameters[0] == [0, 1]
+    assert task.active_dataset.score_type_parameters[0] == [0, "sample_.*$"]
 
 
 def test_cms_conf_overrides_output_only_substring(mixed_package: Path) -> None:

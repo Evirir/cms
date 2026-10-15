@@ -7,7 +7,7 @@ rem   run.bat py             run code\solution.py
 rem   run.bat COMMAND...     run any command, e.g. run.bat java Solution
 rem   run.bat zip            only zip the files already in outputs\
 rem
-rem Set TESTS to run only some inputs, e.g. set TESTS=00 03 then run.bat cpp
+rem Set TESTS to run only some inputs, e.g. set TESTS=sample_01 03 then run.bat cpp
 rem Outputs of the other inputs in outputs\ are kept. No compiler? See README.md.
 setlocal
 
@@ -42,7 +42,7 @@ echo                          (g++, clang++ or MSVC cl; set CXX to choose one)
 echo   run.bat py             run code\solution.py
 echo   run.bat COMMAND...     run any command, e.g. run.bat java Solution
 echo   run.bat zip            only zip the files already in outputs\
-echo Set TESTS to run only some inputs, e.g. set TESTS=00 03 then run.bat cpp
+echo Set TESTS to run only some inputs, e.g. set TESTS=sample_01 03 then run.bat cpp
 echo No compiler? See README.md.
 exit /b 1
 
@@ -105,6 +105,7 @@ if not exist "%OUTPUTS%" mkdir "%OUTPUTS%"
 set FAILED=0
 if not defined CMD goto zip
 pushd "%INPUTS%"
+for %%F in (sample_%IN_PREFIX%*.txt) do call :one "%%~fF" "%%~nF"
 for %%F in (%IN_PREFIX%*.txt) do call :one "%%~fF" "%%~nF"
 popd
 
@@ -128,6 +129,7 @@ echo Created output.zip. Submit it in CMS.
 exit /b %FAILED%
 
 rem Run the solution on one input. %1 is its full path, %2 its name without .txt.
+rem Its ID drops the input_ prefix: input_01 -> 01, sample_input_01 -> sample_01.
 :one
 set "ID=%~2"
 call set "ID=%%ID:%IN_PREFIX%=%%"

@@ -25,11 +25,13 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
   OutputOnly task), but subtasks that depend on them include their tests.
 * Tests whose group name contains the OutputOnly substring (``OO`` by
   default) also form a separate OutputOnly task (``<short-name>-output``),
-  renumbered from ``00`` after the samples, with one GroupMin subtask per
-  test and an ``attachment.zip`` holding the inputs as ``input_XX.txt``.
+  renumbered from ``01``, with one GroupMin subtask per test and an
+  ``attachment.zip`` holding the inputs as ``input_XX.txt``.
 * Every package needs a samples group (``sample`` or ``samples`` by default).
   Its tests are subtask 0 of both tasks, as one subtask whatever its points
-  policy, and are attached to both tasks as ``samples.zip``.
+  policy, and are attached to both tasks as ``samples.zip``
+  (``sample_input_XX.txt`` and ``sample_output_XX.txt``). In the OutputOnly
+  task they are codenames ``sample_XX`` and also in ``attachment.zip``.
 
 ``MIPSPolygonMultiContestLoader`` imports a Polygon contest package
 (``contest.xml`` and ``problems/*``), creating both tasks for every problem
@@ -89,6 +91,8 @@ OUTPUT_ONLY_TITLE_SUFFIX = " (Output)"
 TITLE_LANGUAGE = "english"
 OUTPUT_ONLY_ATTACHMENT_NAME = "attachment.zip"
 SAMPLES_ATTACHMENT_NAME = "samples.zip"
+# OutputOnly codename prefix of the sample tests, e.g. ``sample_01``.
+SAMPLE_CODENAME_PREFIX = "sample_"
 # Contestant kit added to attachment.zip, see mips_polygon_kit/README.md.
 KIT_PACKAGE_PATH = "mips_polygon_kit"
 KIT_FILES = (
@@ -354,11 +358,12 @@ class MIPSPolygon:
         """Return the OutputOnly codenames, aligned with output_only_task_tests.
 
         Returns:
-            Codenames numbered from ``00``, padded to at least two digits.
+            ``sample_01``, ... for the samples, then ``01``, ... for the OO
+            tests, each padded to at least two digits.
         """
-        count = len(self.output_only_task_tests)
-        width = max(2, len(str(count)))
-        return [str(i).zfill(width) for i in range(count)]
+        return [
+            SAMPLE_CODENAME_PREFIX + n for n in _numbers(len(self.sample_tests))
+        ] + _numbers(len(self.output_only_tests))
 
     def transitive_dependencies(self) -> dict[str, list[str]]:
         """Return each group with its transitive prerequisites, itself included.
@@ -426,13 +431,39 @@ class MIPSPolygon:
                     )
         return params
 
-    def output_only_score_params(self) -> list[list[float | int]]:
-        """Return the samples as subtask 0, then one subtask per OO test."""
-        params: list[list[float | int]] = [
-            [_points(self.samples_points), len(self.sample_tests)]
+    def output_only_score_params(self) -> list[list[float | str]]:
+        """Return the samples as subtask 0, then one subtask per OO test.
+
+        Regexes, not test counts: GroupMin sorts codenames, which puts
+        ``sample_XX`` after the numbers.
+        """
+        codenames = self.output_only_codenames()[len(self.sample_tests) :]
+        params: list[list[float | str]] = [
+            [_points(self.samples_points), re.escape(SAMPLE_CODENAME_PREFIX) + ".*$"]
         ]
-        params.extend([_points(t.points), 1] for t in self.output_only_tests)
+        params.extend(
+            [_points(t.points), re.escape(c) + "$"]
+            for c, t in zip(codenames, self.output_only_tests)
+        )
         return params
+
+
+def _numbers(count: int) -> list[str]:
+    """Return ``01`` to ``count``, padded to at least two digits."""
+    width = max(2, len(str(count)))
+    return [str(i).zfill(width) for i in range(1, count + 1)]
+
+
+def _output_only_input_name(codename: str) -> str:
+    """Return the input file name of an OutputOnly codename.
+
+    For example ``input_01.txt`` for ``01`` and ``sample_input_01.txt`` for
+    ``sample_01``.
+    """
+    if codename.startswith(SAMPLE_CODENAME_PREFIX):
+        number = codename[len(SAMPLE_CODENAME_PREFIX) :]
+        return f"{SAMPLE_CODENAME_PREFIX}input_{number}.txt"
+    return f"input_{codename}.txt"
 
 
 def _required_text(element: ET.Element, tag: str) -> str:
@@ -519,7 +550,7 @@ def _output_only_kit(inputs: Mapping[str, bytes]) -> bytes:
     README that help contestants make the output zip to submit.
 
     Args:
-        inputs: Mapping from input file names (e.g. ``input_00.txt``) to
+        inputs: Mapping from input file names (e.g. ``input_01.txt``) to
             their contents.
     """
     kit = importlib.resources.files("cmscontrib.loaders").joinpath(KIT_PACKAGE_PATH)
@@ -600,12 +631,13 @@ class _MIPSPolygonTaskLoaderBase(TaskLoader):
         tests = self.package.sample_tests
         if not tests:
             return {}
-        width = max(2, len(str(len(tests))))
         samples: dict[str, bytes] = {}
-        for i, test in enumerate(tests, start=1):
-            sample_id = str(i).zfill(width)
-            samples[f"input.{sample_id}.txt"] = _read_test_file(test.input_path)
-            samples[f"output.{sample_id}.txt"] = _read_test_file(test.answer_path)
+        for sample_id, test in zip(_numbers(len(tests)), tests):
+            prefix = SAMPLE_CODENAME_PREFIX
+            samples[f"{prefix}input_{sample_id}.txt"] = _read_test_file(test.input_path)
+            samples[f"{prefix}output_{sample_id}.txt"] = _read_test_file(
+                test.answer_path
+            )
         digest = self._put(_zip_bytes(samples), f"Samples for task {name}")
         return {SAMPLES_ATTACHMENT_NAME: Attachment(SAMPLES_ATTACHMENT_NAME, digest)}
 
@@ -742,7 +774,7 @@ class MIPSPolygonOutputOnlyTaskLoader(_MIPSPolygonTaskLoaderBase):
         )
         args["submission_format"] = [f"output_{c}.txt" for c in codenames]
         inputs = {
-            f"input_{c}.txt": _read_test_file(t.input_path)
+            _output_only_input_name(c): _read_test_file(t.input_path)
             for c, t in zip(codenames, tests)
         }
         digest = self._put(
