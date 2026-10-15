@@ -7,7 +7,7 @@ inputs, and each one is scored on its own.
 
 | Path | What it is |
 |---|---|
-| `inputs/` | The inputs, `input_00.txt`, `input_01.txt`, ... |
+| `inputs/` | The inputs, `input_00.txt`, `input_01.txt`, ..., starting with the samples |
 | `code/solution.cpp` | C++ template |
 | `code/solution.py` | Python template |
 | `run.sh` | Script for Linux and macOS |
