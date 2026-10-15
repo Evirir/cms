@@ -27,8 +27,9 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
   either, only part of the subtasks that depend on them.
 * Tests whose group name contains the OutputOnly substring (``OO`` by
   default) also form a separate OutputOnly task (``<short-name>-output``),
-  renumbered from ``01``, with one GroupMin subtask per test and an
-  ``attachment.zip`` holding the inputs as ``input_XX.txt``.
+  renumbered from ``01``, with one GroupMin subtask per test worth points
+  and an ``attachment.zip`` contestant kit holding the inputs as
+  ``input_XX.txt``.
 * Every package needs a samples group (``sample`` or ``samples`` by default).
   Its tests are subtask 0 of both tasks, as one subtask whatever its points
   policy, and are attached to both tasks as ``samples.zip``
