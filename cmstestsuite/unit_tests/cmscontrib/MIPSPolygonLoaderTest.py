@@ -17,6 +17,7 @@
 """Tests for the polyconv-style Polygon package loaders."""
 
 import io
+import os
 import re
 import shutil
 import subprocess
@@ -401,6 +402,35 @@ def test_output_only_kit_makes_submission_zip(
     with zipfile.ZipFile(kit / "output.zip") as output:
         assert sorted(output.namelist()) == task.submission_format
         assert output.read("output_03.txt") == b"in4\n"
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_output_only_kit_explains_missing_compiler(
+    mixed_package: Path, tmp_path: Path
+) -> None:
+    cacher = FakeFileCacher()
+    task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    kit = tmp_path / "kit"
+    with zipfile.ZipFile(
+        io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
+    ) as attachment:
+        attachment.extractall(kit)
+
+    result = subprocess.run(
+        ["bash", str(kit / "run.sh"), "cpp"],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env={**os.environ, "CXX": "no-such-compiler"},
+    )
+
+    assert result.returncode == 1
+    assert "No C++ compiler found" in result.stderr
+    assert not (kit / "outputs").exists()
 
 
 @pytest.mark.parametrize(

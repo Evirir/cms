@@ -2,12 +2,13 @@
 # Run a solution on every input in inputs/ and zip the outputs for CMS.
 #
 #   ./run.sh cpp            compile and run code/solution.cpp
+#                           (g++ or clang++; set CXX to choose a compiler)
 #   ./run.sh py             run code/solution.py
 #   ./run.sh COMMAND...     run any command, e.g. ./run.sh java Solution
 #   ./run.sh zip            only zip the files already in outputs/
 #
 # Set TESTS to run only some inputs, e.g. TESTS="00 03" ./run.sh cpp
-# Outputs of the other inputs in outputs/ are kept.
+# Outputs of the other inputs in outputs/ are kept. No compiler? See README.md.
 set -u
 
 dir="$(cd "$(dirname "$0")" && pwd)"
@@ -26,19 +27,37 @@ mode="${1:-}"
 
 case "$mode" in
 "")
-    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 cpp)
-    echo "Compiling code/solution.cpp"
-    g++ "${cxxflags[@]}" -o "$cpp_binary" "$cpp_source" || exit 1
+    cxx="${CXX:-}"
+    if [ -z "$cxx" ]; then
+        for candidate in g++ clang++; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+                cxx="$candidate"
+                break
+            fi
+        done
+    fi
+    if [ -z "$cxx" ] || ! command -v "$cxx" >/dev/null 2>&1; then
+        echo "No C++ compiler found. Compile code/solution.cpp yourself, e.g. in" >&2
+        echo "your IDE, then run: ./run.sh path/to/your/program" >&2
+        echo "Or set CXX to your compiler: CXX=/path/to/g++ ./run.sh cpp" >&2
+        exit 1
+    fi
+    echo "Compiling code/solution.cpp with $cxx"
+    "$cxx" "${cxxflags[@]}" -o "$cpp_binary" "$cpp_source" || exit 1
     cmd=("$cpp_binary")
     ;;
 py)
     if command -v python3 >/dev/null 2>&1; then
         cmd=(python3 "$py_source")
-    else
+    elif command -v python >/dev/null 2>&1; then
         cmd=(python "$py_source")
+    else
+        echo "Python not found. Install Python 3 from https://www.python.org" >&2
+        exit 1
     fi
     ;;
 zip)
