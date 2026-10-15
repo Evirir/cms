@@ -23,11 +23,11 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
   capture Polygon groups, their points policies and their dependencies.
 * Tests whose group name contains the OutputOnly substring (``OO`` by
   default) also form a separate OutputOnly task (``<short-name>-output``),
-  renumbered from ``00``,
-  with one GroupMin subtask per test and an ``attachment.zip`` holding the
-  inputs as ``input_XX.txt``.
-* Tests of the samples group (``samples`` or ``sample`` by default) are
-  attached to both tasks as ``samples.zip``.
+  renumbered from ``00`` after the samples, with one GroupMin subtask per
+  test and an ``attachment.zip`` holding the inputs as ``input_XX.txt``.
+* Every package needs a samples group (``sample`` or ``samples`` by default).
+  Its tests are subtask 0 of both tasks, as one subtask whatever its points
+  policy, and are attached to both tasks as ``samples.zip``.
 
 ``MIPSPolygonMultiContestLoader`` imports a Polygon contest package
 (``contest.xml`` and ``problems/*``), creating both tasks for every problem
@@ -79,7 +79,7 @@ from .base_loader import LANGUAGE_MAP, ContestLoader, TaskLoader
 logger = logging.getLogger(__name__)
 
 DEFAULT_OUTPUT_ONLY_GROUP_SUBSTRING = "OO"
-DEFAULT_SAMPLES_GROUPS = ("samples", "sample")
+DEFAULT_SAMPLES_GROUPS = ("sample", "samples")
 BATCH_TASK_SUFFIX = "-code"
 OUTPUT_ONLY_TASK_SUFFIX = "-output"
 BATCH_TITLE_SUFFIX = " (Code)"
@@ -282,6 +282,12 @@ class MIPSPolygon:
         self.samples_groups: tuple[str, ...] = (
             (samples_group,) if samples_group is not None else DEFAULT_SAMPLES_GROUPS
         )
+        if not self.sample_tests:
+            names = " or ".join(f'"{g}"' for g in self.samples_groups)
+            raise ValueError(
+                f"Package has no sample tests: no test is in a group named {names}. "
+                "Set SAMPLES_GROUP in files/cms_conf.py to use another name."
+            )
 
     @property
     def batch_name(self) -> str:
@@ -302,6 +308,24 @@ class MIPSPolygon:
     def sample_tests(self) -> list[PolygonTest]:
         """Return the tests of the samples group."""
         return [t for t in self.tests if t.group in self.samples_groups]
+
+    @property
+    def samples_points(self) -> float:
+        """Return the total points of the sample tests, normally 0."""
+        total = 0.0
+        for group in self.groups:
+            if group.name not in self.samples_groups:
+                continue
+            if group.points_policy == "each-test":
+                total += sum(t.points for t in self.tests if t.group == group.name)
+            else:
+                total += group.points
+        return total
+
+    @property
+    def output_only_task_tests(self) -> list[PolygonTest]:
+        """Return the tests of the OutputOnly task: the samples, then OO tests."""
+        return self.sample_tests + self.output_only_tests
 
     @property
     def has_batch_tests(self) -> bool:
@@ -325,12 +349,12 @@ class MIPSPolygon:
         return f"{str(test.index).zfill(width)}_{test.group}"
 
     def output_only_codenames(self) -> list[str]:
-        """Return the OutputOnly codenames, aligned with output_only_tests.
+        """Return the OutputOnly codenames, aligned with output_only_task_tests.
 
         Returns:
             Codenames numbered from ``00``, padded to at least two digits.
         """
-        count = len(self.output_only_tests)
+        count = len(self.output_only_task_tests)
         width = max(2, len(str(count)))
         return [str(i).zfill(width) for i in range(count)]
 
@@ -358,18 +382,22 @@ class MIPSPolygon:
     def batch_score_params(self) -> list[list[float | str]]:
         """Return GroupMin parameters for the Batch task.
 
-        Like polyconv, ``complete-group`` groups become one subtask covering
-        the group and its prerequisites; ``each-test`` groups become one
-        subtask per test, also covering the group's prerequisites.
+        The samples are subtask 0, as one subtask whatever their points
+        policy. Like polyconv, other ``complete-group`` groups become one
+        subtask covering the group and its prerequisites; ``each-test`` groups
+        become one subtask per test, also covering the group's prerequisites.
 
         Raises:
             ValueError: If a group uses an unsupported points policy.
         """
         dependencies = self.transitive_dependencies()
-        params: list[list[float | str]] = []
-        # Samples first, so they are subtask 0; Polygon lists groups by name.
-        groups = sorted(self.groups, key=lambda g: g.name not in self.samples_groups)
-        for group in groups:
+        sample_groups = sorted({t.group for t in self.sample_tests})
+        params: list[list[float | str]] = [
+            [_points(self.samples_points), _groups_regex(sample_groups)]
+        ]
+        for group in self.groups:
+            if group.name in self.samples_groups:
+                continue
             match group.points_policy:
                 case "complete-group":
                     params.append(
@@ -392,8 +420,12 @@ class MIPSPolygon:
         return params
 
     def output_only_score_params(self) -> list[list[float | int]]:
-        """Return one GroupMin subtask per OutputOnly test."""
-        return [[_points(t.points), 1] for t in self.output_only_tests]
+        """Return the samples as subtask 0, then one subtask per OO test."""
+        params: list[list[float | int]] = [
+            [_points(self.samples_points), len(self.sample_tests)]
+        ]
+        params.extend([_points(t.points), 1] for t in self.output_only_tests)
+        return params
 
 
 def _required_text(element: ET.Element, tag: str) -> str:
@@ -688,8 +720,7 @@ class MIPSPolygonOutputOnlyTaskLoader(_MIPSPolygonTaskLoaderBase):
         """See docstring in class TaskLoader."""
         package = self.package
         name = package.output_only_name
-        tests = package.output_only_tests
-        if not tests:
+        if not package.output_only_tests:
             logger.critical(
                 'No test groups contain the OutputOnly substring "%s".',
                 package.output_only_substring,
@@ -697,6 +728,7 @@ class MIPSPolygonOutputOnlyTaskLoader(_MIPSPolygonTaskLoaderBase):
             return None
         logger.info("Loading OutputOnly task %s.", name)
 
+        tests = package.output_only_task_tests
         codenames = package.output_only_codenames()
         args = self._task_args(
             name, package.title + OUTPUT_ONLY_TITLE_SUFFIX, get_statement

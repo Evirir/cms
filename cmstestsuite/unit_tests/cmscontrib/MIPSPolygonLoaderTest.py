@@ -168,7 +168,8 @@ def test_group_regex_does_not_match_longer_group_names(tmp_path: Path) -> None:
         str(
             write_package(
                 tmp_path,
-                [("s3-OO", 10), ("s3", 90)],
+                [("sample", 0), ("s3-OO", 10), ("s3", 90)],
+                '<group name="sample" points-policy="complete-group"/>'
                 '<group name="s3-OO" points-policy="each-test"/>'
                 '<group name="s3" points="90" points-policy="complete-group"/>',
             )
@@ -176,8 +177,9 @@ def test_group_regex_does_not_match_longer_group_names(tmp_path: Path) -> None:
     )
     codenames = [package.batch_codename(t) for t in package.tests]
     assert [matching(p[1], codenames) for p in package.batch_score_params()] == [
-        ["1_s3-OO"],
-        ["2_s3"],
+        ["1_sample"],
+        ["2_s3-OO"],
+        ["3_s3"],
     ]
 
 
@@ -198,6 +200,41 @@ def test_samples_are_subtask_zero(tmp_path: Path) -> None:
         ["1_samples"],
         ["2_s1"],
     ]
+
+
+@pytest.mark.parametrize("policy", ["complete-group", "each-test"])
+def test_multiple_samples_are_one_subtask(tmp_path: Path, policy: str) -> None:
+    """Several samples form one subtask 0 in both tasks, whatever the policy."""
+    path = write_package(
+        tmp_path,
+        [("sample", 0), ("sample", 0), ("s1-OO", 40), ("s2", 60)],
+        f'<group name="sample" points-policy="{policy}"/>'
+        '<group name="s1-OO" points-policy="each-test"/>'
+        '<group name="s2" points="60" points-policy="complete-group">'
+        '<dependencies><dependency group="sample"/></dependencies></group>',
+    )
+    package = MIPSPolygon(str(path))
+    codenames = [package.batch_codename(t) for t in package.tests]
+    params = package.batch_score_params()
+    assert [p[0] for p in params] == [0, 40, 60]
+    assert [matching(p[1], codenames) for p in params] == [
+        ["1_sample", "2_sample"],
+        ["3_s1-OO"],
+        ["1_sample", "2_sample", "4_s2"],
+    ]
+    assert package.output_only_codenames() == ["00", "01", "02"]
+    assert package.output_only_score_params() == [[0, 2], [40, 1]]
+
+
+def test_package_without_samples_is_rejected(tmp_path: Path) -> None:
+    """A package must have a samples group with at least one test."""
+    path = write_package(
+        tmp_path,
+        [("s1", 100)],
+        '<group name="s1" points="100" points-policy="complete-group"/>',
+    )
+    with pytest.raises(ValueError, match='no test is in a group named "sample"'):
+        MIPSPolygon(str(path))
 
 
 def test_package_creates_batch_and_output_only_tasks(mixed_package: Path) -> None:
@@ -277,7 +314,7 @@ def test_batch_task(mixed_package: Path) -> None:
 
 
 def test_output_only_task(mixed_package: Path) -> None:
-    """The OutputOnly task renumbers OO tests and attaches their inputs."""
+    """The OutputOnly task has the samples, then the renumbered OO tests."""
     cacher = FakeFileCacher()
     task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
         get_statement=False
@@ -289,13 +326,15 @@ def test_output_only_task(mixed_package: Path) -> None:
         "output_00.txt",
         "output_01.txt",
         "output_02.txt",
+        "output_03.txt",
     ]
     dataset = task.active_dataset
     assert dataset.task_type == "OutputOnly"
     assert dataset.task_type_parameters == ["diff"]
-    assert dataset.score_type_parameters == [[5, 1], [5, 1], [5, 1]]
-    assert sorted(dataset.testcases) == ["00", "01", "02"]
-    assert cacher.files[dataset.testcases["00"].output] == b"out2\n"
+    assert dataset.score_type_parameters == [[0, 1], [5, 1], [5, 1], [5, 1]]
+    assert sorted(dataset.testcases) == ["00", "01", "02", "03"]
+    assert cacher.files[dataset.testcases["00"].output] == b"out1\n"
+    assert cacher.files[dataset.testcases["01"].output] == b"out2\n"
 
     attachment = zipfile.ZipFile(
         io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
@@ -307,10 +346,12 @@ def test_output_only_task(mixed_package: Path) -> None:
         "inputs/input_00.txt",
         "inputs/input_01.txt",
         "inputs/input_02.txt",
+        "inputs/input_03.txt",
         "run.bat",
         "run.sh",
     ]
-    assert attachment.read("inputs/input_02.txt") == b"in4\n"
+    assert attachment.read("inputs/input_00.txt") == b"in1\n"
+    assert attachment.read("inputs/input_03.txt") == b"in4\n"
     assert (attachment.getinfo("run.sh").external_attr >> 16) & 0o111
     assert b"\r\n" in attachment.read("run.bat")
     assert b"\r\n" not in attachment.read("run.sh")
@@ -364,13 +405,14 @@ def test_output_only_kit_makes_submission_zip(
 
     with zipfile.ZipFile(kit / "output.zip") as output:
         assert sorted(output.namelist()) == task.submission_format
-        assert output.read("output_02.txt") == b"in4\n"
+        assert output.read("output_03.txt") == b"in4\n"
 
 
 @pytest.mark.parametrize(
     ("group", "conf", "found"),
     [
         ("sample", None, True),
+        ("samples", None, True),
         ("examples", None, False),
         ("examples", 'SAMPLES_GROUP = "examples"\n', True),
         ("sample", 'SAMPLES_GROUP = "examples"\n', False),
@@ -379,7 +421,7 @@ def test_output_only_kit_makes_submission_zip(
 def test_samples_group_names(
     tmp_path: Path, group: str, conf: str | None, found: bool
 ) -> None:
-    """``samples`` and ``sample`` are found by default; SAMPLES_GROUP overrides."""
+    """``sample`` and ``samples`` are found by default; SAMPLES_GROUP overrides."""
     groups = (
         f'<group name="{group}" points-policy="complete-group"/>'
         '<group name="s1-OO" points-policy="each-test"/>'
@@ -388,11 +430,16 @@ def test_samples_group_names(
     if conf is not None:
         (package / "files").mkdir()
         (package / "files" / "cms_conf.py").write_text(conf, encoding="utf-8")
+    if not found:
+        with pytest.raises(ValueError, match="no sample tests"):
+            MIPSPolygon(str(package))
+        return
     task = MIPSPolygonOutputOnlyTaskLoader(str(package), FakeFileCacher()).get_task(
         get_statement=False
     )
     assert task is not None
-    assert ("samples.zip" in task.attachments) == found
+    assert "samples.zip" in task.attachments
+    assert task.active_dataset.score_type_parameters[0] == [0, 1]
 
 
 def test_cms_conf_overrides_output_only_substring(mixed_package: Path) -> None:
