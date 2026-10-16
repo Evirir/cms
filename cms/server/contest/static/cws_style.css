@@ -490,6 +490,20 @@ td.token_rules p:last-child {
     margin-left: 110px;
 }
 
+/* Fit file names like output_sample_01.txt. */
+#submit_solution .span5 .control-label {
+    width: 140px;
+}
+
+#submit_solution .span5 .controls {
+    margin-left: 150px;
+}
+
+/* Keep the submission.zip form inside its column. */
+#submit_solution .span4 input[type="file"] {
+    width: 190px;
+}
+
 #submit_solution input[type="file"] {
     height: auto;
     line-height: 18px;
