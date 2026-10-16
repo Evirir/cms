@@ -824,7 +824,7 @@ class YamlLoader(ContestLoader, TaskLoader, UserLoader, TeamLoader):
             args["time_limit"] = None
             args["memory_limit"] = None
             args["task_type_parameters"] = [evaluation_param]
-            task.submission_format = ["output_%03d.txt" % i for i in range(n_input)]
+            task.submission_format = ["out_%03d.txt" % i for i in range(n_input)]
 
         else:
             # Otherwise, the task type is Batch or BatchAndOutput
@@ -853,7 +853,7 @@ class YamlLoader(ContestLoader, TaskLoader, UserLoader, TeamLoader):
                     output_codenames = \
                         {"%03d" % int(x.strip()) for x in output_optional_testcases.split(',')}
                 output_codenames.update(output_only_codenames)
-                task.submission_format.extend(["output_%s.txt" % s for s in sorted(output_codenames)])
+                task.submission_format.extend(["out_%s.txt" % s for s in sorted(output_codenames)])
 
         args["testcases"] = []
         for i in range(n_input):

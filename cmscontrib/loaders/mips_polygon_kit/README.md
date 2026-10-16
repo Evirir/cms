@@ -7,7 +7,7 @@ inputs, and each one is scored on its own.
 
 | Path | What it is |
 |---|---|
-| `inputs/` | The samples `sample_input_01.txt`, ..., then the inputs `input_01.txt`, `input_02.txt`, ... |
+| `inputs/` | The samples `sample_in_01.txt`, ..., then the inputs `in_01.txt`, `in_02.txt`, ... |
 | `code/solution.cpp` | C++ template |
 | `code/solution.py` | Python template |
 | `run.sh` | Script for Linux and macOS |
@@ -27,8 +27,8 @@ inputs, and each one is scored on its own.
 
    For example, `./run.sh java Solution` or `run.bat node code\solution.js`.
    The command is run once per input, with the input on standard input.
-3. The script writes `outputs/output_sample_01.txt`, ..., `outputs/output_01.txt`,
-   `outputs/output_02.txt`, ... and
+3. The script writes `outputs/out_sample_01.txt`, ..., `outputs/out_01.txt`,
+   `outputs/out_02.txt`, ... and
    zips them into `output.zip`.
 4. In CMS, open the task, choose `output.zip` in the submission form and submit.
 
@@ -37,9 +37,9 @@ inputs, and each one is scored on its own.
 - Only run some inputs: `TESTS="sample_01 03" ./run.sh cpp` on Linux/macOS, or
   `set TESTS=sample_01 03` and then `run.bat cpp` on Windows. The other files in
   `outputs/` are kept, so you can use a different program for each input.
-- Made some outputs by hand? Put them in `outputs/` as `output_XX.txt` and run
+- Made some outputs by hand? Put them in `outputs/` as `out_XX.txt` and run
   `./run.sh zip` or `run.bat zip` to only zip them.
-- `output.zip` must contain only `output_XX.txt` files, otherwise CMS rejects
+- `output.zip` must contain only `out_XX.txt` files, otherwise CMS rejects
   the whole submission. You can also submit some of the files on their own.
 - If the solution crashes on an input, the script warns you and keeps going,
   so the other outputs still get submitted.
@@ -63,8 +63,8 @@ Use whichever of these suits you:
 2. **Compile in your IDE**, then give the script the program it built:
    `run.bat path\to\solution.exe` or `./run.sh path/to/solution`.
 3. **No terminal at all:** run your program on each input yourself, for
-   example in your IDE, and save each answer as `outputs/output_XX.txt` with
-   the same number as `inputs/input_XX.txt` (`output_sample_XX.txt` for
-   `sample_input_XX.txt`). Then run `run.bat zip` or
-   `./run.sh zip`, or zip the `output_XX.txt` files yourself. The files must
+   example in your IDE, and save each answer as `outputs/out_XX.txt` with
+   the same number as `inputs/in_XX.txt` (`out_sample_XX.txt` for
+   `sample_in_XX.txt`). Then run `run.bat zip` or
+   `./run.sh zip`, or zip the `out_XX.txt` files yourself. The files must
    be at the top of the zip, not inside a folder.

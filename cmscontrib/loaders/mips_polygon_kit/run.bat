@@ -15,8 +15,8 @@ set "DIR=%~dp0"
 set "INPUTS=%DIR%inputs"
 set "OUTPUTS=%DIR%outputs"
 set "ZIP=%DIR%output.zip"
-set "IN_PREFIX=input_"
-set "OUT_PREFIX=output_"
+set "IN_PREFIX=in_"
+set "OUT_PREFIX=out_"
 set "CPP_SOURCE=%DIR%code\solution.cpp"
 set "CPP_BINARY=%DIR%code\solution.exe"
 set "CPP_OBJECT=%DIR%code\solution.obj"
@@ -129,7 +129,7 @@ echo Created output.zip. Submit it in CMS.
 exit /b %FAILED%
 
 rem Run the solution on one input. %1 is its full path, %2 its name without .txt.
-rem Its ID drops the input_ prefix: input_01 -> 01, sample_input_01 -> sample_01.
+rem Its ID drops the in_ prefix: in_01 -> 01, sample_in_01 -> sample_01.
 :one
 set "ID=%~2"
 call set "ID=%%ID:%IN_PREFIX%=%%"

@@ -29,11 +29,11 @@ The conversion follows polyconv (https://github.com/Evirir/polyconv):
   default) also form a separate OutputOnly task (``<short-name>-output``),
   renumbered from ``01``, with one GroupMin subtask per test worth points
   and an ``attachment.zip`` contestant kit holding the inputs as
-  ``input_XX.txt``.
+  ``in_XX.txt``.
 * Every package needs a samples group (``sample`` or ``samples`` by default).
   Its tests are subtask 0 of both tasks, as one subtask whatever its points
   policy, and are attached to both tasks as ``samples.zip``
-  (``sample_input_XX.txt`` and ``sample_output_XX.txt``). In the OutputOnly
+  (``sample_in_XX.txt`` and ``sample_out_XX.txt``). In the OutputOnly
   task they are codenames ``sample_XX`` and also in ``attachment.zip``.
 
 ``MIPSPolygonMultiContestLoader`` imports a Polygon contest package
@@ -467,13 +467,13 @@ def _numbers(count: int) -> list[str]:
 def _output_only_input_name(codename: str) -> str:
     """Return the input file name of an OutputOnly codename.
 
-    For example ``input_01.txt`` for ``01`` and ``sample_input_01.txt`` for
+    For example ``in_01.txt`` for ``01`` and ``sample_in_01.txt`` for
     ``sample_01``.
     """
     if codename.startswith(SAMPLE_CODENAME_PREFIX):
         number = codename[len(SAMPLE_CODENAME_PREFIX) :]
-        return f"{SAMPLE_CODENAME_PREFIX}input_{number}.txt"
-    return f"input_{codename}.txt"
+        return f"{SAMPLE_CODENAME_PREFIX}in_{number}.txt"
+    return f"in_{codename}.txt"
 
 
 def _required_text(element: ET.Element, tag: str) -> str:
@@ -560,7 +560,7 @@ def _output_only_kit(inputs: Mapping[str, bytes]) -> bytes:
     README that help contestants make the output zip to submit.
 
     Args:
-        inputs: Mapping from input file names (e.g. ``input_01.txt``) to
+        inputs: Mapping from input file names (e.g. ``in_01.txt``) to
             their contents.
     """
     kit = importlib.resources.files("cmscontrib.loaders").joinpath(KIT_PACKAGE_PATH)
@@ -644,8 +644,8 @@ class _MIPSPolygonTaskLoaderBase(TaskLoader):
         samples: dict[str, bytes] = {}
         for sample_id, test in zip(_numbers(len(tests)), tests):
             prefix = SAMPLE_CODENAME_PREFIX
-            samples[f"{prefix}input_{sample_id}.txt"] = _read_test_file(test.input_path)
-            samples[f"{prefix}output_{sample_id}.txt"] = _read_test_file(
+            samples[f"{prefix}in_{sample_id}.txt"] = _read_test_file(test.input_path)
+            samples[f"{prefix}out_{sample_id}.txt"] = _read_test_file(
                 test.answer_path
             )
         digest = self._put(_zip_bytes(samples), f"Samples for task {name}")
@@ -782,7 +782,7 @@ class MIPSPolygonOutputOnlyTaskLoader(_MIPSPolygonTaskLoaderBase):
         args = self._task_args(
             name, package.title + OUTPUT_ONLY_TITLE_SUFFIX, get_statement
         )
-        args["submission_format"] = [f"output_{c}.txt" for c in codenames]
+        args["submission_format"] = [f"out_{c}.txt" for c in codenames]
         inputs = {
             _output_only_input_name(c): _read_test_file(t.input_path)
             for c, t in zip(codenames, tests)

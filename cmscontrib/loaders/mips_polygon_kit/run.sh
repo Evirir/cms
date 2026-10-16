@@ -15,8 +15,8 @@ dir="$(cd "$(dirname "$0")" && pwd)"
 inputs_dir="$dir/inputs"
 outputs_dir="$dir/outputs"
 zip_file="$dir/output.zip"
-in_prefix="input_"
-out_prefix="output_"
+in_prefix="in_"
+out_prefix="out_"
 cpp_source="$dir/code/solution.cpp"
 cpp_binary="$dir/code/solution"
 py_source="$dir/code/solution.py"
@@ -73,7 +73,7 @@ failed=0
 if [ "${#cmd[@]}" -gt 0 ]; then
     for input in "$inputs_dir/sample_$in_prefix"*.txt "$inputs_dir/$in_prefix"*.txt; do
         [ -e "$input" ] || continue
-        # input_01 -> 01, sample_input_01 -> sample_01
+        # in_01 -> 01, sample_in_01 -> sample_01
         name="$(basename "$input" .txt)"
         id="${name/"$in_prefix"/}"
         if [ -n "${TESTS:-}" ] && [[ " $TESTS " != *" $id "* ]]; then

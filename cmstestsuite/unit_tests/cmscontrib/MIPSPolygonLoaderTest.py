@@ -339,10 +339,10 @@ def test_batch_task(mixed_package: Path) -> None:
         io.BytesIO(cacher.files[task.attachments["samples.zip"].digest])
     )
     assert sorted(samples.namelist()) == [
-        "sample_input_01.txt",
-        "sample_output_01.txt",
+        "sample_in_01.txt",
+        "sample_out_01.txt",
     ]
-    assert samples.read("sample_output_01.txt") == b"out1\n"
+    assert samples.read("sample_out_01.txt") == b"out1\n"
 
 
 def test_output_only_task(mixed_package: Path) -> None:
@@ -355,10 +355,10 @@ def test_output_only_task(mixed_package: Path) -> None:
     assert task.name == "sorting-output"
     assert task.title == "Sorting (Output)"
     assert task.submission_format == [
-        "output_sample_01.txt",
-        "output_01.txt",
-        "output_02.txt",
-        "output_03.txt",
+        "out_sample_01.txt",
+        "out_01.txt",
+        "out_02.txt",
+        "out_03.txt",
     ]
     dataset = task.active_dataset
     assert dataset.task_type == "OutputOnly"
@@ -380,15 +380,15 @@ def test_output_only_task(mixed_package: Path) -> None:
         "README.md",
         "code/solution.cpp",
         "code/solution.py",
-        "inputs/input_01.txt",
-        "inputs/input_02.txt",
-        "inputs/input_03.txt",
-        "inputs/sample_input_01.txt",
+        "inputs/in_01.txt",
+        "inputs/in_02.txt",
+        "inputs/in_03.txt",
+        "inputs/sample_in_01.txt",
         "run.bat",
         "run.sh",
     ]
-    assert attachment.read("inputs/sample_input_01.txt") == b"in1\n"
-    assert attachment.read("inputs/input_03.txt") == b"in4\n"
+    assert attachment.read("inputs/sample_in_01.txt") == b"in1\n"
+    assert attachment.read("inputs/in_03.txt") == b"in4\n"
     assert (attachment.getinfo("run.sh").external_attr >> 16) & 0o111
     assert b"\r\n" in attachment.read("run.bat")
     assert b"\r\n" not in attachment.read("run.sh")
@@ -396,8 +396,8 @@ def test_output_only_task(mixed_package: Path) -> None:
         io.BytesIO(cacher.files[task.attachments["samples.zip"].digest])
     )
     assert sorted(samples.namelist()) == [
-        "sample_input_01.txt",
-        "sample_output_01.txt",
+        "sample_in_01.txt",
+        "sample_out_01.txt",
     ]
 
 
@@ -445,7 +445,7 @@ def test_output_only_kit_makes_submission_zip(
 
     with zipfile.ZipFile(kit / "output.zip") as output:
         assert sorted(output.namelist()) == sorted(task.submission_format)
-        assert output.read("output_03.txt") == b"in4\n"
+        assert output.read("out_03.txt") == b"in4\n"
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
