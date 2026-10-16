@@ -56,7 +56,7 @@ OutputOnly
 
 In an OutputOnly task, contestants can see the input of each testcase, and have to compute offline a correct output.
 
-In any submission, contestants may submit outputs for any subset of testcases. The submission format therefore must contain one element for each testcase, and the elements must be of the form :file:`output_{codename}.txt` where :samp:`{codename}` is the codename for the testcase.
+In any submission, contestants may submit outputs for any subset of testcases. The submission format therefore must contain one element for each testcase, and the elements must be of the form :file:`out_{codename}.txt` where :samp:`{codename}` is the codename for the testcase.
 
 Moreover, CMS will automatically fill the missing files in the current submission with those in the previous one, as if the contestant had submitted them. For example, if there were 4 testcases, and the following submissions:
 

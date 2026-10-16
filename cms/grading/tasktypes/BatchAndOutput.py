@@ -66,14 +66,14 @@ class BatchAndOutput(Batch):
     to stdout and the text to stderr.
 
     The submission format for tasks of this task type should contain both
-    a single source file and one or more text files named "output_%s.txt",
+    a single source file and one or more text files named "out_%s.txt",
     where "%s" is the test case index.
 
     """
 
     # Template for the filename of the output files provided by the user; %s
     # represent the testcase codename.
-    USER_OUTPUT_FILENAME_TEMPLATE = "output_%s.txt"
+    USER_OUTPUT_FILENAME_TEMPLATE = "out_%s.txt"
 
     # Other constants to specify the task type behaviour and parameters.
     ALLOW_PARTIAL_SUBMISSION = True

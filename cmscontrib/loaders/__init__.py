@@ -20,6 +20,11 @@ import typing
 
 from .base_loader import BaseLoader
 from .italy_yaml import YamlLoader
+from .mips_polygon import (
+    MIPSPolygonBatchTaskLoader,
+    MIPSPolygonMultiContestLoader,
+    MIPSPolygonOutputOnlyTaskLoader,
+)
 from .polygon import PolygonTaskLoader, PolygonUserLoader, PolygonContestLoader
 from .tps import TpsTaskLoader
 
@@ -31,6 +36,9 @@ LOADERS: dict[str, type[BaseLoader]] = dict(
         PolygonTaskLoader,
         PolygonUserLoader,
         PolygonContestLoader,
+        MIPSPolygonBatchTaskLoader,
+        MIPSPolygonOutputOnlyTaskLoader,
+            MIPSPolygonMultiContestLoader,
         TpsTaskLoader,
     ]
 )

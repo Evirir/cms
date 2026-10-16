@@ -21,7 +21,7 @@ task_info = {
     "title": "Test OutputOnly Task",
     "official_language": "",
     "submission_format_choice": "other",
-    "submission_format": "output_000.txt, output_001.txt",
+    "submission_format": "out_000.txt, out_001.txt",
     "time_limit_{{dataset_id}}": "0.5",
     "memory_limit_{{dataset_id}}": "128",
     "task_type_{{dataset_id}}": "OutputOnly",

@@ -217,13 +217,13 @@ class TpsTaskLoader(TaskLoader):
         if data["task_type"] == 'OutputOnly':
             args["submission_format"] = list()
             for codename in testcase_codenames:
-                args["submission_format"].append("output_%s.txt" % codename)
+                args["submission_format"].append("out_%s.txt" % codename)
         elif data["task_type"] == 'Notice':
             args["submission_format"] = list()
         elif data["task_type"] == "BatchAndOutput":
             args["submission_format"] = ["%s.%%l" % name]
             for codename in sorted(data["output_testcases"]):
-                args["submission_format"].append("output_%s.txt" % codename)
+                args["submission_format"].append("out_%s.txt" % codename)
         else:
             args["submission_format"] = ["%s.%%l" % name]
 
