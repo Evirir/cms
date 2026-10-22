@@ -8,12 +8,12 @@ by hand, or both. This kit is only there to make it easier.
 
 ## What's in this folder
 
-| Path | What it is |
-|---|---|
-| `inputs/` | The input files: the samples `sample_in_01.txt`, ..., then `in_01.txt`, `in_02.txt`, ... |
-| `code/` | Templates to start your program from, one per language. You don't have to use them. |
-| `run.bat` | Windows script: runs your program on every input and makes `output.zip` |
-| `run.sh` | The same script for macOS and Linux |
+| Path      | What it is                                                              |
+|-----------|-------------------------------------------------------------------------|
+| `inputs/` | The input files: samples `sample_in_01.txt`, ..., then `in_01.txt`, ... |
+| `code/`   | Templates for your program, one per language. They are optional.        |
+| `run.bat` | Windows script: runs your program on every input, makes `output.zip`    |
+| `run.sh`  | The same script for macOS and Linux                                     |
 
 ## Quick start
 
