@@ -22,7 +22,7 @@ import re
 import shutil
 import subprocess
 import zipfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -378,8 +378,15 @@ def test_output_only_task(mixed_package: Path) -> None:
     )
     assert sorted(attachment.namelist()) == [
         "README.md",
+        "code/Solution.java",
+        "code/solution.c",
         "code/solution.cpp",
+        "code/solution.cs",
+        "code/solution.hs",
+        "code/solution.pas",
+        "code/solution.php",
         "code/solution.py",
+        "code/solution.rs",
         "inputs/in_01.txt",
         "inputs/in_02.txt",
         "inputs/in_03.txt",
@@ -401,33 +408,77 @@ def test_output_only_task(mixed_package: Path) -> None:
     ]
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
-@pytest.mark.parametrize(
-    ("args", "solution"),
-    [
-        (["cat"], None),
-        (["py"], ("code/solution.py", "print(input())\n")),
+# Mode of run.sh -> (template overwritten with an echo solution, tool it needs).
+KIT_ECHO_SOLUTIONS: Mapping[str, tuple[str, str, str]] = {
+    "py": ("code/solution.py", "print(input())\n", "python3"),
+    "cpp": (
+        "code/solution.cpp",
         (
-            ["cpp"],
-            (
-                "code/solution.cpp",
-                (
-                    "#include <iostream>\n#include <string>\n"
-                    "int main()\n{\n    std::string s;\n    std::cin >> s;\n"
-                    '    std::cout << s << "\\n";\n}\n'
-                ),
-            ),
+            "#include <iostream>\n#include <string>\n"
+            "int main()\n{\n    std::string s;\n    std::cin >> s;\n"
+            '    std::cout << s << "\\n";\n}\n'
         ),
-    ],
-)
+        "g++",
+    ),
+    "c": (
+        "code/solution.c",
+        (
+            "#include <stdio.h>\n"
+            'int main(void)\n{\n    char s[100];\n    scanf("%99s", s);\n'
+            '    printf("%s\\n", s);\n    return 0;\n}\n'
+        ),
+        "gcc",
+    ),
+    "java": (
+        "code/Solution.java",
+        (
+            "import java.util.Scanner;\n"
+            "public class Solution {\n"
+            "    public static void main(String[] args) {\n"
+            "        System.out.println(new Scanner(System.in).next());\n"
+            "    }\n}\n"
+        ),
+        "javac",
+    ),
+    "cs": (
+        "code/solution.cs",
+        (
+            "using System;\n"
+            "class Solution\n{\n    static void Main()\n    {\n"
+            "        Console.WriteLine(Console.ReadLine());\n    }\n}\n"
+        ),
+        "mcs",
+    ),
+    "rs": (
+        "code/solution.rs",
+        (
+            "use std::io::{self, Read};\n"
+            "fn main() {\n    let mut input = String::new();\n"
+            "    io::stdin().read_to_string(&mut input).unwrap();\n"
+            '    println!("{}", input.trim());\n}\n'
+        ),
+        "rustc",
+    ),
+    "php": ("code/solution.php", "<?php\necho trim(fgets(STDIN)), \"\\n\";\n", "php"),
+    "hs": ("code/solution.hs", "main :: IO ()\nmain = getLine >>= putStrLn\n", "ghc"),
+    "pas": (
+        "code/solution.pas",
+        "program solution;\nvar s: string;\nbegin\n    readln(s);\n    writeln(s);\nend.\n",
+        "fpc",
+    ),
+}
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+@pytest.mark.parametrize("args", [["cat"], *([mode] for mode in KIT_ECHO_SOLUTIONS)])
 def test_output_only_kit_makes_submission_zip(
     mixed_package: Path,
     tmp_path: Path,
     args: Sequence[str],
-    solution: tuple[str, str] | None,
 ) -> None:
-    if args == ["cpp"] and shutil.which("g++") is None:
-        pytest.skip("needs g++")
+    solution = KIT_ECHO_SOLUTIONS.get(args[0])
+    if solution is not None and shutil.which(solution[2]) is None:
+        pytest.skip(f"needs {solution[2]}")
     cacher = FakeFileCacher()
     task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
         get_statement=False
@@ -446,6 +497,31 @@ def test_output_only_kit_makes_submission_zip(
     with zipfile.ZipFile(kit / "output.zip") as output:
         assert sorted(output.namelist()) == sorted(task.submission_format)
         assert output.read("out_03.txt") == b"in4\n"
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+@pytest.mark.parametrize("mode", list(KIT_ECHO_SOLUTIONS))
+def test_output_only_kit_templates_compile(
+    mixed_package: Path, tmp_path: Path, mode: str
+) -> None:
+    tool = KIT_ECHO_SOLUTIONS[mode][2]
+    if shutil.which(tool) is None:
+        pytest.skip(f"needs {tool}")
+    cacher = FakeFileCacher()
+    task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    kit = tmp_path / "kit"
+    with zipfile.ZipFile(
+        io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
+    ) as attachment:
+        attachment.extractall(kit)
+
+    subprocess.run(["bash", str(kit / "run.sh"), mode], check=True, cwd=tmp_path)
+
+    with zipfile.ZipFile(kit / "output.zip") as output:
+        assert sorted(output.namelist()) == sorted(task.submission_format)
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")

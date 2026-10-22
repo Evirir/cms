@@ -103,7 +103,14 @@ KIT_FILES = (
     "run.sh",
     "run.bat",
     "code/solution.cpp",
+    "code/solution.c",
     "code/solution.py",
+    "code/Solution.java",
+    "code/solution.cs",
+    "code/solution.rs",
+    "code/solution.php",
+    "code/solution.hs",
+    "code/solution.pas",
 )
 KIT_EXECUTABLES = frozenset({"run.sh"})
 KIT_INPUTS_DIR = "inputs"

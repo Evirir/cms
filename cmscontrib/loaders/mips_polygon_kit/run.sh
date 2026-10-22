@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Run a solution on every input in inputs/ and zip the outputs for CMS.
 #
-#   ./run.sh cpp            compile and run code/solution.cpp
-#                           (g++ or clang++; set CXX to choose a compiler)
-#   ./run.sh py             run code/solution.py
-#   ./run.sh COMMAND...     run any command, e.g. ./run.sh java Solution
+#   ./run.sh LANGUAGE       compile and run code/solution.* (Solution.java), where
+#                           LANGUAGE is cpp, c, py, java, cs, rs, php, hs or pas
+#   ./run.sh COMMAND...     run any command, e.g. ./run.sh node code/solution.js
 #   ./run.sh zip            only zip the files already in outputs/
 #
-# Set TESTS to run only some inputs, e.g. TESTS="sample_01 03" ./run.sh cpp
-# Outputs of the other inputs in outputs/ are kept. No compiler? See README.md.
+# Set CXX (cpp) or CC (c) to choose a compiler. Set TESTS to run only some
+# inputs, e.g. TESTS="sample_01 03" ./run.sh cpp; outputs of the other inputs
+# in outputs/ are kept. No compiler? See README.md.
 set -u
 
 dir="$(cd "$(dirname "$0")" && pwd)"
@@ -17,13 +17,48 @@ outputs_dir="$dir/outputs"
 zip_file="$dir/output.zip"
 in_prefix="in_"
 out_prefix="out_"
-cpp_source="$dir/code/solution.cpp"
-cpp_binary="$dir/code/solution"
-py_source="$dir/code/solution.py"
-# Same flags as the CMS "C++20 / g++" language. macOS can't link statically.
+code_dir="$dir/code"
+binary="$code_dir/solution"
+# Same flags as the CMS languages. macOS can't link statically.
 cxxflags=(-DEVAL -std=gnu++20 -O2 -pipe)
-[ "$(uname -s)" = Darwin ] || cxxflags+=(-static -s)
+cflags=(-DEVAL -std=gnu11 -O2 -pipe)
+fpcflags=(-dEVAL -O2)
+if [ "$(uname -s)" != Darwin ]; then
+    cxxflags+=(-static -s)
+    cflags+=(-static -s)
+    fpcflags+=(-XSs)
+fi
 mode="${1:-}"
+source=""
+
+# Print the first of the given commands that is installed.
+first_command() {
+    local candidate
+    for candidate in "$@"; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Exit, explaining that the tool for $1 (e.g. "C++ compiler") is missing.
+# $2 is how to get it.
+missing() {
+    echo "No $1 found. $2" >&2
+    if [ -n "${source:-}" ]; then
+        echo "Or compile ${source#"$dir/"} yourself, e.g. in your IDE, then run:" >&2
+        echo "./run.sh path/to/your/program" >&2
+    fi
+    exit 1
+}
+
+# Print what is compiled, then run the compile command, exiting if it fails.
+compile() {
+    echo "Compiling ${source#"$dir/"} with $1"
+    "$@" || exit 1
+}
 
 case "$mode" in
 "")
@@ -31,34 +66,65 @@ case "$mode" in
     exit 1
     ;;
 cpp)
-    cxx="${CXX:-}"
-    if [ -z "$cxx" ]; then
-        for candidate in g++ clang++; do
-            if command -v "$candidate" >/dev/null 2>&1; then
-                cxx="$candidate"
-                break
-            fi
-        done
-    fi
-    if [ -z "$cxx" ] || ! command -v "$cxx" >/dev/null 2>&1; then
-        echo "No C++ compiler found. Compile code/solution.cpp yourself, e.g. in" >&2
-        echo "your IDE, then run: ./run.sh path/to/your/program" >&2
-        echo "Or set CXX to your compiler: CXX=/path/to/g++ ./run.sh cpp" >&2
-        exit 1
-    fi
-    echo "Compiling code/solution.cpp with $cxx"
-    "$cxx" "${cxxflags[@]}" -o "$cpp_binary" "$cpp_source" || exit 1
-    cmd=("$cpp_binary")
+    source="$code_dir/solution.cpp"
+    cxx="${CXX:-$(first_command g++ clang++)}"
+    command -v "$cxx" >/dev/null 2>&1 ||
+        missing "C++ compiler" "Set CXX to yours: CXX=/path/to/g++ ./run.sh cpp"
+    compile "$cxx" "${cxxflags[@]}" -o "$binary" "$source"
+    cmd=("$binary")
+    ;;
+c)
+    source="$code_dir/solution.c"
+    cc="${CC:-$(first_command gcc clang)}"
+    command -v "$cc" >/dev/null 2>&1 ||
+        missing "C compiler" "Set CC to yours: CC=/path/to/gcc ./run.sh c"
+    compile "$cc" "${cflags[@]}" -o "$binary" "$source" -lm
+    cmd=("$binary")
     ;;
 py)
-    if command -v python3 >/dev/null 2>&1; then
-        cmd=(python3 "$py_source")
-    elif command -v python >/dev/null 2>&1; then
-        cmd=(python "$py_source")
-    else
-        echo "Python not found. Install Python 3 from https://www.python.org" >&2
-        exit 1
-    fi
+    python="$(first_command python3 python)" ||
+        missing "Python" "Install Python 3 from https://www.python.org"
+    cmd=("$python" "$code_dir/solution.py")
+    ;;
+java)
+    source="$code_dir/Solution.java"
+    command -v javac >/dev/null 2>&1 ||
+        missing "Java compiler (javac)" "Install a JDK, e.g. from https://adoptium.net"
+    compile javac -d "$code_dir" "$source"
+    cmd=(java -Deval=true -Xss64M -cp "$code_dir" Solution)
+    ;;
+cs)
+    source="$code_dir/solution.cs"
+    command -v mcs >/dev/null 2>&1 ||
+        missing "C# compiler (mcs)" "Install Mono from https://www.mono-project.com"
+    compile mcs -out:"$binary.exe" -optimize+ "$source"
+    cmd=(mono "$binary.exe")
+    ;;
+rs)
+    source="$code_dir/solution.rs"
+    command -v rustc >/dev/null 2>&1 ||
+        missing "Rust compiler (rustc)" "Install Rust from https://rustup.rs"
+    compile rustc -O -o "$binary" "$source"
+    cmd=("$binary")
+    ;;
+php)
+    command -v php >/dev/null 2>&1 ||
+        missing "PHP" "Install PHP from https://www.php.net"
+    cmd=(php -d memory_limit=-1 "$code_dir/solution.php")
+    ;;
+hs)
+    source="$code_dir/solution.hs"
+    command -v ghc >/dev/null 2>&1 ||
+        missing "Haskell compiler (ghc)" "Install GHC from https://www.haskell.org/ghcup"
+    compile ghc -O2 -o "$binary" "$source"
+    cmd=("$binary")
+    ;;
+pas)
+    source="$code_dir/solution.pas"
+    command -v fpc >/dev/null 2>&1 ||
+        missing "Pascal compiler (fpc)" "Install Free Pascal from https://www.freepascal.org"
+    compile fpc "${fpcflags[@]}" -o"$binary" "$source"
+    cmd=("$binary")
     ;;
 zip)
     cmd=()
