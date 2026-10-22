@@ -14,6 +14,8 @@ by hand, or both. This kit is only there to make it easier.
 | `code/`   | Templates for your program, one per language. They are optional.        |
 | `run.bat` | Windows script: runs your program on every input, makes `output.zip`    |
 | `run.sh`  | The same script for macOS and Linux                                     |
+| `outputs/`| Made by the scripts: your latest good answer for each input             |
+| `runs/`   | Made by the scripts: the answers of every run, one folder per run       |
 
 ## Quick start
 
@@ -47,7 +49,7 @@ by hand, or both. This kit is only there to make it easier.
    - a script: `run.bat python mycode.py` or `./run.sh node mycode.js`
 5. **The script makes `output.zip`.** It also saves each answer in `outputs/`:
    `out_01.txt` is the answer for `in_01.txt`, `out_sample_01.txt` for
-   `sample_in_01.txt`, and so on.
+   `sample_in_01.txt`, and so on. Every run is also kept in `runs/`.
 6. **Submit `output.zip` in CMS:** open the task, choose `output.zip` in the
    submission form and submit.
 
@@ -72,6 +74,57 @@ folder, the one that has `run.bat` and this `README.md`.
 - **Code::Blocks, Dev-C++ and other IDEs without a terminal:** keep writing
   and saving your code in the IDE, and open a terminal with the Windows,
   macOS or Linux steps above to run the script.
+
+## Partial solutions: running only some inputs
+
+Each answer is scored on its own, so you don't need one program that solves
+every input. You can run a program only on the inputs it can solve, e.g. a
+slow solution on the small inputs or a solution for only some subtasks, and
+another program on the rest. Then submit `output.zip`, which has the answers
+from all of them.
+
+### Choose which inputs to run
+
+Set `TESTS` to the names of the inputs without `in_` and `.txt`. For
+`sample_in_01.txt` and `in_03.txt`, that is `sample_01 03`:
+
+- Command Prompt: `set TESTS=sample_01 03`, then `run.bat cpp`
+- PowerShell: `$env:TESTS="sample_01 03"`, then `.\run.bat cpp`
+- macOS/Linux: `TESTS="sample_01 03" ./run.sh cpp`
+
+On Windows, `TESTS` stays set until you close the window. To run every input
+again, type `set TESTS=` (Command Prompt) or `$env:TESTS=""` (PowerShell).
+On macOS/Linux it only applies to that one command.
+
+### Stop slow inputs (time limit)
+
+Set `TIMEOUT` to a number of seconds. If your program takes longer than that
+on an input, it is stopped, that input is skipped, and the script goes on
+with the next input:
+
+- Command Prompt: `set TIMEOUT=10`, then `run.bat cpp`
+- PowerShell: `$env:TIMEOUT="10"`, then `.\run.bat cpp`
+- macOS/Linux: `TIMEOUT=10 ./run.sh cpp`
+
+You can use `TESTS` and `TIMEOUT` together, e.g.
+`TESTS="01 02" TIMEOUT=10 ./run.sh cpp`. There is no time limit unless you
+set one. To remove it on Windows, type `set TIMEOUT=` or `$env:TIMEOUT=""`.
+
+### Your earlier answers are kept
+
+- `runs/` has one folder per run, named with its date and time, e.g.
+  `runs/2026-11-14_10-05-09/`. It has that run's answers and `log.txt`, which
+  lists the command and whether each input was ok, failed or stopped by
+  `TIMEOUT`. The scripts never change or delete these folders.
+- `outputs/` has your latest good answer for each input. A run only copies
+  an answer there if your program finished without an error and within
+  `TIMEOUT`, so a crash or a timeout never replaces an answer you already had.
+- The scripts can't tell if an answer is right. If a new program finishes but
+  gives a wrong answer, it still replaces the one in `outputs/`. To get an
+  older answer back, copy it from its folder in `runs/` into `outputs/`, then
+  run `run.bat zip` or `./run.sh zip`.
+- `output.zip` is made from all the files in `outputs/`. To start over,
+  delete the `outputs/` folder.
 
 ## Not using the scripts
 
@@ -101,21 +154,14 @@ in your IDE and copying its output, or by working an answer out by hand.
     above.
 - **"Permission denied" from `./run.sh`:** type `bash run.sh cpp` instead.
 - **"WARNING: the solution failed on ...":** your program crashed or gave an
-  error on that input. The script still runs the other inputs and makes
-  `output.zip`, so you can submit the answers that worked.
-- **Changed only some answers?** Files in `outputs/` you didn't rerun are
-  kept and go into `output.zip` too.
+  error on that input. The script skips it (an earlier answer for it in
+  `outputs/` stays), runs the other inputs and makes `output.zip`, so you can
+  submit the answers that worked. What your program printed is in `runs/`.
+- **"WARNING: stopped ... (TIMEOUT)":** your program took longer than
+  `TIMEOUT` seconds on that input, so it was skipped the same way.
 
 ## More details
 
-- **Running only some inputs:** set `TESTS` to the input names without `in_`
-  and `.txt`, e.g.
-  for `sample_in_01.txt` and `in_03.txt`:
-  - Command Prompt: `set TESTS=sample_01 03`, then `run.bat cpp`
-  - PowerShell: `$env:TESTS="sample_01 03"`, then `.\run.bat cpp`
-  - macOS/Linux: `TESTS="sample_01 03" ./run.sh cpp`
-
-  This way you can use a different program for some inputs.
 - **What each language needs installed:** C++: `g++`, `clang++` or (Windows)
   MSVC `cl`. C: `gcc`, `clang` or MSVC `cl`. Python: `python3`/`python`
   (Windows: `py`/`python`). Java: a JDK (`javac`, `java`). C#: Mono (`mcs`,
@@ -129,5 +175,7 @@ in your IDE and copying its output, or by working an answer out by hand.
 - **Compiler flags:** C++ and C get the same flags as CMS, e.g.
   `-DEVAL -std=gnu++20 -O2 -pipe -static -s` for C++ (not static on macOS).
   MSVC gets `/DEVAL /std:c++20 /O2 /EHsc` (`/std:c11` for C).
+- **`TIMEOUT` on Windows** uses PowerShell, which comes with Windows 10 and
+  11. A stopped program is killed together with any programs it started.
 - **C# on Windows without Mono:** the script uses the `csc` that comes with
   Windows (.NET Framework), which only knows C# 5.

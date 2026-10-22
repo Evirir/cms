@@ -6,14 +6,20 @@ rem                          LANGUAGE is cpp, c, py, java, cs, rs, php, hs or pa
 rem   run.bat COMMAND...     run any command, e.g. run.bat node code\solution.js
 rem   run.bat zip            only zip the files already in outputs\
 rem
+rem   set TESTS=sample_01 03  then run.bat: only sample_in_01.txt and in_03.txt
+rem   set TIMEOUT=10          then run.bat: stop and skip an input after 10 seconds
+rem
+rem Each run saves its answers and log.txt in runs\<date>_<time>\. Answers that
+rem finished without crashing or timing out are copied to outputs\, which keeps
+rem the latest good answer of every input and is zipped into output.zip.
 rem Set CXX (cpp) or CC (c) to choose a compiler; cpp and c also find MSVC's cl.
-rem Set TESTS to run only some inputs, e.g. set TESTS=sample_01 03 then run.bat cpp
-rem Outputs of the other inputs in outputs\ are kept. No compiler? See README.md.
+rem No compiler? See README.md.
 setlocal
 
 set "DIR=%~dp0"
 set "INPUTS=%DIR%inputs"
 set "OUTPUTS=%DIR%outputs"
+set "RUNS=%DIR%runs"
 set "ZIP=%DIR%output.zip"
 set "IN_PREFIX=in_"
 set "OUT_PREFIX=out_"
@@ -49,9 +55,13 @@ echo   run.bat LANGUAGE       compile and run code\solution.* (Solution.java), w
 echo                          LANGUAGE is cpp, c, py, java, cs, rs, php, hs or pas
 echo   run.bat COMMAND...     run any command, e.g. run.bat node code\solution.js
 echo   run.bat zip            only zip the files already in outputs\
+echo   set TESTS=sample_01 03  then run.bat: only sample_in_01.txt and in_03.txt
+echo   set TIMEOUT=10          then run.bat: stop and skip an input after 10 seconds
+echo Each run saves its answers and log.txt in runs\^<date^>_^<time^>\. Answers that
+echo finished without crashing or timing out are copied to outputs\, which keeps
+echo the latest good answer of every input and is zipped into output.zip.
 echo Set CXX (cpp) or CC (c) to choose a compiler; cpp and c also find MSVC's cl.
-echo Set TESTS to run only some inputs, e.g. set TESTS=sample_01 03 then run.bat cpp
-echo Outputs of the other inputs in outputs\ are kept. No compiler? See README.md.
+echo No compiler? See README.md.
 exit /b 1
 
 :lang_cpp
@@ -203,10 +213,44 @@ exit /b 1
 if not exist "%OUTPUTS%" mkdir "%OUTPUTS%"
 set FAILED=0
 if not defined CMD goto zip
-pushd "%INPUTS%"
-for %%F in (sample_%IN_PREFIX%*.txt) do call :one "%%~fF" "%%~nF"
-for %%F in (%IN_PREFIX%*.txt) do call :one "%%~fF" "%%~nF"
-popd
+set "LIMIT="
+if not defined TIMEOUT goto limit_ok
+where powershell >nul 2>nul
+if errorlevel 1 goto limit_needs_powershell
+rem Exit code 0: a time limit, 2: no time limit (0 seconds), 1: not a number.
+powershell -NoProfile -Command "$t=0.0; if(-not [double]::TryParse($env:TIMEOUT,[Globalization.NumberStyles]::Float,[Globalization.CultureInfo]::InvariantCulture,[ref]$t) -or $t -lt 0){exit 1}; if($t -eq 0){exit 2}; exit 0"
+if errorlevel 2 goto limit_ok
+if errorlevel 1 goto limit_bad
+set "LIMIT=%TIMEOUT%"
+:limit_ok
+set "STAMP="
+for /f "delims=" %%T in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss" 2^>nul') do set "STAMP=%%T"
+if not defined STAMP set "STAMP=run_%RANDOM%"
+set "RUN=%RUNS%\%STAMP%"
+set N=2
+:run_dir
+if not exist "%RUN%" goto run_dir_ok
+set "RUN=%RUNS%\%STAMP%_%N%"
+set /a N+=1
+goto run_dir
+:run_dir_ok
+mkdir "%RUN%"
+for %%R in ("%RUN%") do set "RUN_NAME=%%~nxR"
+set "LOG=%RUN%\log.txt"
+set "FLAG=%RUN%\timed_out.flag"
+set "KIT_FLAG=%FLAG%"
+set "KIT_LIMIT=%LIMIT%"
+>"%LOG%" echo Command: %CMD%
+if defined LIMIT >>"%LOG%" echo Time limit: %LIMIT% seconds
+if not defined LIMIT >>"%LOG%" echo Time limit: none
+if defined TESTS >>"%LOG%" echo Inputs: %TESTS%
+if not defined TESTS >>"%LOG%" echo Inputs: all
+set OK=0
+set CRASHED=0
+set SLOW=0
+for /f "delims=" %%F in ('dir /b /on "%INPUTS%\sample_%IN_PREFIX%*.txt" 2^>nul') do call :one "%INPUTS%\%%F" "%%~nF"
+for /f "delims=" %%F in ('dir /b /on "%INPUTS%\%IN_PREFIX%*.txt" 2^>nul') do call :one "%INPUTS%\%%F" "%%~nF"
+echo This run: %OK% ok, %CRASHED% failed, %SLOW% stopped by TIMEOUT. Saved in runs\%RUN_NAME%\
 
 :zip
 if exist "%ZIP%" del "%ZIP%"
@@ -238,9 +282,44 @@ for %%T in (%TESTS%) do if "%%T"=="%ID%" set WANTED=1
 if "%WANTED%"=="0" goto :eof
 :one_run
 echo Running on %~2.txt
-%CMD% < "%~1" > "%OUTPUTS%\%OUT_PREFIX%%ID%.txt"
-if errorlevel 1 (
-    echo WARNING: the solution failed on %~2.txt 1>&2
-    set FAILED=1
-)
+set "ANSWER=%RUN%\%OUT_PREFIX%%ID%.txt"
+if exist "%FLAG%" del "%FLAG%"
+if defined LIMIT goto one_limit
+%CMD% < "%~1" > "%ANSWER%"
+set "STATUS=%ERRORLEVEL%"
+goto one_done
+rem Run it through cmd from PowerShell, and kill it after LIMIT seconds.
+:one_limit
+set "KIT_CMD=%CMD%"
+set "KIT_IN=%~1"
+set "KIT_OUT=%ANSWER%"
+powershell -NoProfile -Command "$q=[char]34; $a='/d /s /c '+$q+$env:KIT_CMD+' < '+$q+$env:KIT_IN+$q+' > '+$q+$env:KIT_OUT+$q+$q; $i=New-Object Diagnostics.ProcessStartInfo($env:ComSpec,$a); $i.UseShellExecute=$false; $p=[Diagnostics.Process]::Start($i); $ms=[int](1000*[double]::Parse($env:KIT_LIMIT,[Globalization.CultureInfo]::InvariantCulture)); if($p.WaitForExit($ms)){exit $p.ExitCode}; taskkill /T /F /PID $p.Id 2>&1 | Out-Null; New-Item -ItemType File -Force -Path $env:KIT_FLAG | Out-Null; exit 1"
+set "STATUS=%ERRORLEVEL%"
+:one_done
+if exist "%FLAG%" goto one_slow
+if not "%STATUS%"=="0" goto one_failed
+copy /y "%ANSWER%" "%OUTPUTS%\" >nul
+>>"%LOG%" echo %ID%: ok
+set /a OK+=1
 goto :eof
+:one_slow
+del "%FLAG%"
+echo WARNING: stopped %~2.txt after %LIMIT% seconds (TIMEOUT), skipped it 1>&2
+>>"%LOG%" echo %ID%: stopped after %LIMIT% seconds
+set /a SLOW+=1
+set FAILED=1
+goto :eof
+:one_failed
+echo WARNING: the solution failed on %~2.txt, skipped it 1>&2
+>>"%LOG%" echo %ID%: failed (exit code %STATUS%)
+set /a CRASHED+=1
+set FAILED=1
+goto :eof
+
+:limit_bad
+echo TIMEOUT must be a number of seconds, e.g. set TIMEOUT=10 1>&2
+exit /b 1
+
+:limit_needs_powershell
+echo TIMEOUT needs PowerShell, which comes with Windows 10 and 11. 1>&2
+exit /b 1

@@ -525,6 +525,63 @@ def test_output_only_kit_templates_compile(
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_output_only_kit_keeps_runs_and_good_answers(
+    mixed_package: Path, tmp_path: Path
+) -> None:
+    cacher = FakeFileCacher()
+    task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    kit = tmp_path / "kit"
+    with zipfile.ZipFile(
+        io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
+    ) as attachment:
+        attachment.extractall(kit)
+    # in2 crashes, in4 is too slow, the others get a new answer.
+    solution = kit / "partial.sh"
+    solution.write_text(
+        "read s\n"
+        'case "$s" in in2) exit 3 ;; in4) sleep 30 ;; esac\n'
+        'echo "new $s"\n'
+    )
+    run_sh = ["bash", str(kit / "run.sh")]
+    subprocess.run([*run_sh, "cat"], check=True, cwd=tmp_path)
+
+    result = subprocess.run(
+        [*run_sh, "bash", str(solution)],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env={**os.environ, "TIMEOUT": "1", "TESTS": "01 02 03"},
+        timeout=20,
+    )
+
+    assert result.returncode == 1
+    answers = {
+        path.name[len("in_") :]: path.read_text()
+        for path in (kit / "inputs").glob("in_*.txt")
+    }
+    by_input = {content: name for name, content in answers.items()}
+    crashed, slow = by_input["in2\n"], by_input["in4\n"]
+    assert f"stopped in_{slow} after 1 seconds" in result.stderr
+    assert f"failed on in_{crashed}" in result.stderr
+    runs = sorted((kit / "runs").iterdir())
+    assert len(runs) == 2
+    log = (runs[1] / "log.txt").read_text()
+    assert f"{slow.removesuffix('.txt')}: stopped after 1 seconds" in log
+    assert f"{crashed.removesuffix('.txt')}: failed (exit code 3)" in log
+    outputs = kit / "outputs"
+    for name, content in answers.items():
+        expected = content if name in (crashed, slow) else f"new {content}"
+        assert (outputs / f"out_{name}").read_text() == expected
+    assert (outputs / "out_sample_01.txt").read_text() == "in1\n"
+    with zipfile.ZipFile(kit / "output.zip") as output:
+        assert sorted(output.namelist()) == sorted(task.submission_format)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 def test_output_only_kit_explains_missing_compiler(
     mixed_package: Path, tmp_path: Path
 ) -> None:

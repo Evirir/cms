@@ -6,14 +6,19 @@
 #   ./run.sh COMMAND...     run any command, e.g. ./run.sh node code/solution.js
 #   ./run.sh zip            only zip the files already in outputs/
 #
-# Set CXX (cpp) or CC (c) to choose a compiler. Set TESTS to run only some
-# inputs, e.g. TESTS="sample_01 03" ./run.sh cpp; outputs of the other inputs
-# in outputs/ are kept. No compiler? See README.md.
+# TESTS="sample_01 03" ./run.sh cpp   run only on sample_in_01.txt and in_03.txt
+# TIMEOUT=10 ./run.sh cpp              stop and skip an input after 10 seconds
+#
+# Each run saves its answers and log.txt in runs/<date>_<time>/. Answers that
+# finished without crashing or timing out are copied to outputs/, which keeps
+# the latest good answer of every input and is zipped into output.zip.
+# Set CXX (cpp) or CC (c) to choose a compiler. No compiler? See README.md.
 set -u
 
 dir="$(cd "$(dirname "$0")" && pwd)"
 inputs_dir="$dir/inputs"
 outputs_dir="$dir/outputs"
+runs_dir="$dir/runs"
 zip_file="$dir/output.zip"
 in_prefix="in_"
 out_prefix="out_"
@@ -62,7 +67,7 @@ compile() {
 
 case "$mode" in
 "")
-    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 cpp)
@@ -134,9 +139,69 @@ zip)
     ;;
 esac
 
+limit="${TIMEOUT:-}"
+if [ -n "$limit" ] && ! [[ "$limit" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    echo "TIMEOUT must be a number of seconds, e.g. TIMEOUT=10" >&2
+    exit 1
+fi
+if [[ "$limit" =~ ^0*([.]0*)?$ ]]; then
+    limit=""
+fi
+
+# Run the solution with stdin $1 and stdout $2. Returns 124 if it was stopped
+# after $limit seconds, else the solution's exit code.
+run_solution() {
+    if [ -z "$limit" ]; then
+        "${cmd[@]}" <"$1" >"$2"
+        return
+    fi
+    local flag="$run_dir/.timed_out" pid watcher status
+    rm -f "$flag"
+    # Own process group, so that a timeout also kills what the solution started.
+    set -m
+    "${cmd[@]}" <"$1" >"$2" &
+    pid=$!
+    set +m
+    (
+        trap 'kill "$timer" 2>/dev/null; exit' TERM
+        sleep "$limit" &
+        timer=$!
+        wait "$timer" && touch "$flag" && kill -KILL -- -"$pid"
+    ) </dev/null >/dev/null 2>&1 &
+    watcher=$!
+    trap 'kill "$watcher" 2>/dev/null; kill -KILL -- -"$pid" 2>/dev/null; exit 130' INT TERM
+    wait "$pid" 2>/dev/null
+    status=$?
+    trap - INT TERM
+    kill "$watcher" 2>/dev/null
+    wait "$watcher" 2>/dev/null
+    if [ -e "$flag" ]; then
+        rm -f "$flag"
+        return 124
+    fi
+    return "$status"
+}
+
 mkdir -p "$outputs_dir"
 failed=0
 if [ "${#cmd[@]}" -gt 0 ]; then
+    stamp="$(date +%Y-%m-%d_%H-%M-%S)"
+    run_dir="$runs_dir/$stamp"
+    n=2
+    while [ -e "$run_dir" ]; do
+        run_dir="$runs_dir/${stamp}_$n"
+        n=$((n + 1))
+    done
+    mkdir -p "$run_dir"
+    log="$run_dir/log.txt"
+    {
+        echo "Command: ${cmd[*]}"
+        echo "Time limit: ${limit:-none}${limit:+ seconds}"
+        echo "Inputs: ${TESTS:-all}"
+    } >"$log"
+    ok=0
+    crashed=0
+    slow=0
     for input in "$inputs_dir/sample_$in_prefix"*.txt "$inputs_dir/$in_prefix"*.txt; do
         [ -e "$input" ] || continue
         # in_01 -> 01, sample_in_01 -> sample_01
@@ -146,11 +211,27 @@ if [ "${#cmd[@]}" -gt 0 ]; then
             continue
         fi
         echo "Running on $name.txt"
-        if ! "${cmd[@]}" <"$input" >"$outputs_dir/$out_prefix$id.txt"; then
-            echo "WARNING: the solution failed on $name.txt" >&2
+        answer="$run_dir/$out_prefix$id.txt"
+        run_solution "$input" "$answer"
+        status=$?
+        if [ "$status" -eq 0 ]; then
+            cp "$answer" "$outputs_dir/"
+            echo "$id: ok" >>"$log"
+            ok=$((ok + 1))
+        elif [ "$status" -eq 124 ]; then
+            echo "WARNING: stopped $name.txt after $limit seconds (TIMEOUT), skipped it" >&2
+            echo "$id: stopped after $limit seconds" >>"$log"
+            slow=$((slow + 1))
+            failed=1
+        else
+            echo "WARNING: the solution failed on $name.txt, skipped it" >&2
+            echo "$id: failed (exit code $status)" >>"$log"
+            crashed=$((crashed + 1))
             failed=1
         fi
     done
+    echo "This run: $ok ok, $crashed failed, $slow stopped by TIMEOUT." \
+        "Saved in runs/$(basename "$run_dir")/"
 fi
 
 rm -f "$zip_file"
