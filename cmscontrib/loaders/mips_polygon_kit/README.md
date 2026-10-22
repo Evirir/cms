@@ -28,17 +28,17 @@ by hand, or both. This kit is only there to make it easier.
    folder" below.
 4. **Type the command for your language and press Enter:**
 
-   | Language | Template | Windows | macOS / Linux |
-   |---|---|---|---|
-   | C++ | `solution.cpp` | `run.bat cpp` | `./run.sh cpp` |
-   | C | `solution.c` | `run.bat c` | `./run.sh c` |
-   | Python | `solution.py` | `run.bat py` | `./run.sh py` |
-   | Java | `Solution.java` | `run.bat java` | `./run.sh java` |
-   | C# | `solution.cs` | `run.bat cs` | `./run.sh cs` |
-   | Rust | `solution.rs` | `run.bat rs` | `./run.sh rs` |
-   | PHP | `solution.php` | `run.bat php` | `./run.sh php` |
-   | Haskell | `solution.hs` | `run.bat hs` | `./run.sh hs` |
-   | Pascal | `solution.pas` | `run.bat pas` | `./run.sh pas` |
+   | Language | Template        | Windows        | macOS / Linux   |
+   |----------|-----------------|----------------|-----------------|
+   | C++      | `solution.cpp`  | `run.bat cpp`  | `./run.sh cpp`  |
+   | C        | `solution.c`    | `run.bat c`    | `./run.sh c`    |
+   | Python   | `solution.py`   | `run.bat py`   | `./run.sh py`   |
+   | Java     | `Solution.java` | `run.bat java` | `./run.sh java` |
+   | C#       | `solution.cs`   | `run.bat cs`   | `./run.sh cs`   |
+   | Rust     | `solution.rs`   | `run.bat rs`   | `./run.sh rs`   |
+   | PHP      | `solution.php`  | `run.bat php`  | `./run.sh php`  |
+   | Haskell  | `solution.hs`   | `run.bat hs`   | `./run.sh hs`   |
+   | Pascal   | `solution.pas`  | `run.bat pas`  | `./run.sh pas`  |
 
    These commands use the template file in `code/`. Using your own file or
    another language? Give the script the command that runs your program:
