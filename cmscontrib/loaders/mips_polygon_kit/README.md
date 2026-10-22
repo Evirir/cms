@@ -24,8 +24,8 @@ by hand, or both. This kit is only there to make it easier.
    once for each input file.
    - You can start from the template for your language in `code/`, e.g.
      `code/solution.cpp`, or use your own file. Templates are optional.
-3. **Open a terminal in this folder.** See
-   [Opening a terminal in this folder](#opening-a-terminal-in-this-folder).
+3. **Open a terminal in this folder.** See "Opening a terminal in this
+   folder" below.
 4. **Type the command for your language and press Enter:**
 
    | Language | Template | Windows | macOS / Linux |
@@ -97,8 +97,8 @@ in your IDE and copying its output, or by working an answer out by hand.
     comes with Code::Blocks or Dev-C++: `set CXX=C:\path\to\g++.exe`, then
     `run.bat cpp` (use `CC` instead of `CXX` for C). On macOS/Linux:
     `CXX=/path/to/g++ ./run.sh cpp`;
-  - make the answers without the scripts, see
-    [Not using the scripts](#not-using-the-scripts).
+  - make the answers without the scripts, see "Not using the scripts"
+    above.
 - **"Permission denied" from `./run.sh`:** type `bash run.sh cpp` instead.
 - **"WARNING: the solution failed on ...":** your program crashed or gave an
   error on that input. The script still runs the other inputs and makes
