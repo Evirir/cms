@@ -17,7 +17,10 @@ inputs, and each one is scored on its own.
 1. Write your solution in the template for your language in `code/`. It
    reads **one** input from standard input and prints the answer to
    standard output.
-2. Open a terminal in this folder and run your solution on every input:
+2. Open a terminal in this folder (see
+   [Opening a terminal in this folder](#opening-a-terminal-in-this-folder)),
+   type the command for your language and press Enter. It runs your
+   solution on every input:
 
    | Language | Template | Linux / macOS | Windows | Needs |
    |---|---|---|---|---|
@@ -40,10 +43,39 @@ inputs, and each one is scored on its own.
    zips them into `output.zip`.
 4. In CMS, open the task, choose `output.zip` in the submission form and submit.
 
+## Opening a terminal in this folder
+
+A terminal is a window where you type commands. First extract (unzip) the
+kit: the scripts don't work from inside the zip. On Windows, right-click the
+zip, choose **Extract All...**, then open the extracted folder, the one that
+has `run.bat` and `README.md`. Then:
+
+- **Windows:** in File Explorer, click the address bar at the top of the
+  folder window, type `cmd` and press Enter. A Command Prompt opens in this
+  folder; type e.g. `run.bat cpp` and press Enter.
+  - If you used right-click > **Open in Terminal** instead, you are in
+    PowerShell: type `.\run.bat cpp` instead of `run.bat cpp`.
+- **macOS:** open **Terminal** (Applications > Utilities), type `cd ` (with a
+  space after it), drag this folder from Finder onto the Terminal window and
+  press Enter. Then type e.g. `./run.sh cpp`.
+- **Linux:** right-click inside the folder in your file manager and choose
+  **Open in Terminal**, then type e.g. `./run.sh cpp`.
+- **VS Code:** choose File > Open Folder... and open this folder, then
+  Terminal > New Terminal. The terminal opens in this folder. On Windows it
+  is PowerShell, so type `.\run.bat cpp`.
+- **Code::Blocks, Dev-C++ and other IDEs without a terminal:** keep editing
+  `code/solution.cpp` (or your language's template) in the IDE, save it, and
+  use the Windows/macOS/Linux steps above to run the script.
+
+If `./run.sh` says "Permission denied", type `bash run.sh cpp` instead.
+If a command says the compiler or language isn't found, see
+[No compiler found?](#no-compiler-found).
+
 ## Tips
 
 - Only run some inputs: `TESTS="sample_01 03" ./run.sh cpp` on Linux/macOS, or
-  `set TESTS=sample_01 03` and then `run.bat cpp` on Windows. The other files in
+  `set TESTS=sample_01 03` and then `run.bat cpp` on Windows
+  (PowerShell: `$env:TESTS="sample_01 03"` and then `.\run.bat cpp`). The other files in
   `outputs/` are kept, so you can use a different program for each input.
 - Made some outputs by hand? Put them in `outputs/` as `out_XX.txt` and run
   `./run.sh zip` or `run.bat zip` to only zip them.
