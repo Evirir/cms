@@ -46,7 +46,6 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
         self.setUpMocks("OutputOnly")
         self.file_cacher = MagicMock()
         self.file_cacher.get_file_content.return_value = b"10 12\r\n"
-        self.file_cacher.put_file_content.return_value = "digest without BOM"
 
     @staticmethod
     def job(files):
@@ -118,44 +117,54 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
             user_output_digest="digest of 023")
         self.assertResultsInJob(job, True, str(OUTCOME), TEXT, {})
 
-    def assertEvaluatedDigest(self, content, digest):
+    def evaluate(self, content):
+        """Evaluate a user output, recording what eval_output was given."""
         tt, job = self.prepare(["comparator"], {"out_023.txt": FILE_023})
         self.file_cacher.get_file_content.return_value = content
+        evaluated = {}
 
+        def eval_output(file_cacher, job, checker, user_output_digest=None,
+                        user_output_path=None):
+            evaluated["digest"] = user_output_digest
+            if user_output_path is not None:
+                with open(user_output_path, "rb") as f:
+                    evaluated["content"] = f.read()
+            return True, OUTCOME, TEXT, None
+
+        self.eval_output.side_effect = eval_output
         tt.evaluate(job, self.file_cacher)
 
         self.file_cacher.get_file_content.assert_called_once_with(
             "digest of 023")
-        self.eval_output.assert_called_once_with(
-            self.file_cacher, job, "checker", user_output_digest=digest)
+        self.assertResultsInJob(job, True, str(OUTCOME), TEXT, {})
+        return evaluated
 
     def test_no_bom_is_evaluated_as_is(self):
-        self.assertEvaluatedDigest(b"10 12\r\n", "digest of 023")
-        self.file_cacher.put_file_content.assert_not_called()
+        self.assertEqual(self.evaluate(b"10 12\r\n"),
+                         {"digest": "digest of 023"})
 
     def test_utf16_le_bom_is_evaluated_as_utf8(self):
-        self.assertEvaluatedDigest(
-            "\ufeff10 12\r\n".encode("utf-16-le"), "digest without BOM")
         self.assertEqual(
-            self.file_cacher.put_file_content.call_args.args[0],
-            b"10 12\r\n")
+            self.evaluate("\ufeff10 12\r\n".encode("utf-16-le")),
+            {"digest": None, "content": b"10 12\r\n"})
 
     def test_utf16_be_bom_is_evaluated_as_utf8(self):
-        self.assertEvaluatedDigest(
-            "\ufeff10 12\n".encode("utf-16-be"), "digest without BOM")
         self.assertEqual(
-            self.file_cacher.put_file_content.call_args.args[0], b"10 12\n")
+            self.evaluate("\ufeff10 12\n".encode("utf-16-be")),
+            {"digest": None, "content": b"10 12\n"})
 
     def test_utf8_bom_is_stripped(self):
-        self.assertEvaluatedDigest(b"\xef\xbb\xbf10 12\n",
-                                   "digest without BOM")
-        self.assertEqual(
-            self.file_cacher.put_file_content.call_args.args[0], b"10 12\n")
+        self.assertEqual(self.evaluate(b"\xef\xbb\xbf10 12\n"),
+                         {"digest": None, "content": b"10 12\n"})
 
     def test_undecodable_utf16_is_evaluated_as_is(self):
-        self.assertEvaluatedDigest(b"\xff\xfe1", "digest of 023")
-        self.file_cacher.put_file_content.assert_not_called()
+        self.assertEqual(self.evaluate(b"\xff\xfe1"),
+                         {"digest": "digest of 023"})
 
+    def test_nothing_is_stored(self):
+        self.evaluate("\ufeff10 12\r\n".encode("utf-16-le"))
+        self.file_cacher.put_file_content.assert_not_called()
+        self.file_cacher.put_file.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

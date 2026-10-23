@@ -25,7 +25,10 @@
 
 import codecs
 import logging
+import os
+import tempfile
 
+from cms import config
 from cms.grading.Job import Job
 from cms.grading.ParameterTypes import ParameterTypeChoice
 from . import TaskType, eval_output
@@ -47,26 +50,22 @@ _BOM_ENCODINGS = [
 ]
 
 
-def _without_bom(file_cacher, digest: str) -> str:
-    """Return the digest of the file re-encoded as UTF-8 without its BOM.
+def _without_bom(content: bytes) -> bytes | None:
+    """Re-encode a user output that starts with a BOM as plain UTF-8.
 
-    file_cacher: the file cacher holding the file.
-    digest: digest of the user output.
+    content: the user output.
 
-    return: digest of the UTF-8 copy if the file starts with a UTF-8 or
-        UTF-16 BOM and decodes cleanly, otherwise the given digest.
+    return: the output as UTF-8 without the BOM, or None if it has no
+        UTF-8 or UTF-16 BOM or does not decode.
 
     """
-    content = file_cacher.get_file_content(digest)
     for bom, encoding in _BOM_ENCODINGS:
         if content.startswith(bom):
             try:
-                text = content.decode(encoding)
+                return content.decode(encoding).encode("utf-8")
             except UnicodeDecodeError:
-                return digest
-            return file_cacher.put_file_content(
-                text.encode("utf-8"), "User output %s without BOM" % digest)
-    return digest
+                return None
+    return None
 
 
 class OutputOnly(TaskType):
@@ -154,14 +153,27 @@ class OutputOnly(TaskType):
             job.plus = {}
             return
 
-        user_output_digest = _without_bom(
-            file_cacher, job.files[user_output_filename].digest)
+        checker_codename = \
+            OutputOnly.CHECKER_CODENAME if self._uses_checker() else None
+        user_output_digest = job.files[user_output_filename].digest
+        converted = _without_bom(
+            file_cacher.get_file_content(user_output_digest))
 
         # First and only step: eval the user output.
-        box_success, outcome, text, admin_text = eval_output(
-            file_cacher, job,
-            OutputOnly.CHECKER_CODENAME if self._uses_checker() else None,
-            user_output_digest=user_output_digest)
+        if converted is None:
+            box_success, outcome, text, admin_text = eval_output(
+                file_cacher, job, checker_codename,
+                user_output_digest=user_output_digest)
+        else:
+            with tempfile.TemporaryDirectory(
+                dir=config.global_.temp_dir, prefix="outputonly"
+            ) as tempdir:
+                user_output_path = os.path.join(tempdir, user_output_filename)
+                with open(user_output_path, "wb") as f:
+                    f.write(converted)
+                box_success, outcome, text, admin_text = eval_output(
+                    file_cacher, job, checker_codename,
+                    user_output_path=user_output_path)
 
         # Fill in the job with the results.
         job.success = box_success
