@@ -6,8 +6,10 @@ rem                          LANGUAGE is cpp, c, py, java, cs, rs, php, hs or pa
 rem   run.bat COMMAND...     run any command, e.g. run.bat node code\solution.js
 rem   run.bat zip            only zip the files already in outputs\
 rem
-rem   set TESTS=sample_01 03  then run.bat: only sample_in_01.txt and in_03.txt
-rem   set TIMEOUT=10          then run.bat: stop and skip an input after 10 seconds
+rem Options, before LANGUAGE or COMMAND:
+rem   --tests in_01.txt sample_in_02.txt ...   run only on these inputs
+rem   --timeout 10                             stop and skip an input after 10 s
+rem   e.g. run.bat --tests in_01.txt in_03.txt --timeout 10 cpp
 rem
 rem Each run saves its answers and log.txt in runs\<date>_<time>\. Answers that
 rem finished without crashing or timing out are copied to outputs\, which keeps
@@ -32,9 +34,53 @@ set "CFLAGS=-DEVAL -std=gnu11 -O2 -pipe -static -s"
 rem The closest MSVC (cl, clang-cl) equivalents.
 set "MSVC_CXXFLAGS=/nologo /DEVAL /std:c++20 /O2 /EHsc"
 set "MSVC_CFLAGS=/nologo /DEVAL /std:c11 /O2"
-set "MODE=%~1"
 set "CMD="
+set "TESTS="
+set "LIMIT="
 
+:options
+if "%~1"=="" goto options_done
+if "%~1"=="--tests" goto opt_tests
+if "%~1"=="--timeout" goto opt_timeout
+if /i "%~1"=="--help" goto usage
+set "ARG=%~1"
+if "%ARG:~0,1%"=="-" goto opt_unknown
+goto options_done
+:opt_tests
+shift
+set "GOT="
+:opt_tests_next
+if "%~1"=="" goto opt_tests_end
+call :input_file "%~1"
+if "%RESULT%"=="2" goto opt_tests_end
+if "%RESULT%"=="1" goto opt_tests_missing
+set "TESTS=%TESTS% %FILE%.txt"
+set GOT=1
+shift
+goto opt_tests_next
+:opt_tests_end
+if not defined GOT goto opt_tests_empty
+goto options
+:opt_timeout
+set "LIMIT=%~2"
+if not defined LIMIT goto limit_bad
+shift
+shift
+goto options
+
+:options_done
+set "KIT_LIMIT=%LIMIT%"
+set "LIMIT="
+if not defined KIT_LIMIT goto limit_ok
+where powershell >nul 2>nul
+if errorlevel 1 goto limit_needs_powershell
+rem Exit code 0: a time limit, 2: no time limit (0 seconds), 1: not a number.
+powershell -NoProfile -Command "$t=0.0; if(-not [double]::TryParse($env:KIT_LIMIT,[Globalization.NumberStyles]::Float,[Globalization.CultureInfo]::InvariantCulture,[ref]$t) -or $t -lt 0){exit 1}; if($t -eq 0){exit 2}; exit 0"
+if errorlevel 2 goto limit_ok
+if errorlevel 1 goto limit_bad
+set "LIMIT=%KIT_LIMIT%"
+:limit_ok
+set "MODE=%~1"
 if "%MODE%"=="" goto usage
 if /i "%MODE%"=="cpp" goto lang_cpp
 if /i "%MODE%"=="c" goto lang_c
@@ -46,7 +92,14 @@ if /i "%MODE%"=="php" goto lang_php
 if /i "%MODE%"=="hs" goto lang_hs
 if /i "%MODE%"=="pas" goto lang_pas
 if /i "%MODE%"=="zip" goto run
-set CMD=%*
+rem Any other command: %* would still have the options, so rebuild it.
+:command
+if "%~1"=="" goto command_done
+set CMD=%CMD% %1
+shift
+goto command
+:command_done
+set "CMD=%CMD:~1%"
 goto run
 
 :usage
@@ -55,8 +108,10 @@ echo   run.bat LANGUAGE       compile and run code\solution.* (Solution.java), w
 echo                          LANGUAGE is cpp, c, py, java, cs, rs, php, hs or pas
 echo   run.bat COMMAND...     run any command, e.g. run.bat node code\solution.js
 echo   run.bat zip            only zip the files already in outputs\
-echo   set TESTS=sample_01 03  then run.bat: only sample_in_01.txt and in_03.txt
-echo   set TIMEOUT=10          then run.bat: stop and skip an input after 10 seconds
+echo Options, before LANGUAGE or COMMAND:
+echo   --tests in_01.txt sample_in_02.txt ...   run only on these inputs
+echo   --timeout 10                             stop and skip an input after 10 s
+echo   e.g. run.bat --tests in_01.txt in_03.txt --timeout 10 cpp
 echo Each run saves its answers and log.txt in runs\^<date^>_^<time^>\. Answers that
 echo finished without crashing or timing out are copied to outputs\, which keeps
 echo the latest good answer of every input and is zipped into output.zip.
@@ -213,16 +268,6 @@ exit /b 1
 if not exist "%OUTPUTS%" mkdir "%OUTPUTS%"
 set FAILED=0
 if not defined CMD goto zip
-set "LIMIT="
-if not defined TIMEOUT goto limit_ok
-where powershell >nul 2>nul
-if errorlevel 1 goto limit_needs_powershell
-rem Exit code 0: a time limit, 2: no time limit (0 seconds), 1: not a number.
-powershell -NoProfile -Command "$t=0.0; if(-not [double]::TryParse($env:TIMEOUT,[Globalization.NumberStyles]::Float,[Globalization.CultureInfo]::InvariantCulture,[ref]$t) -or $t -lt 0){exit 1}; if($t -eq 0){exit 2}; exit 0"
-if errorlevel 2 goto limit_ok
-if errorlevel 1 goto limit_bad
-set "LIMIT=%TIMEOUT%"
-:limit_ok
 set "STAMP="
 for /f "delims=" %%T in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss" 2^>nul') do set "STAMP=%%T"
 if not defined STAMP set "STAMP=run_%RANDOM%"
@@ -243,14 +288,14 @@ set "KIT_LIMIT=%LIMIT%"
 >"%LOG%" echo Command: %CMD%
 if defined LIMIT >>"%LOG%" echo Time limit: %LIMIT% seconds
 if not defined LIMIT >>"%LOG%" echo Time limit: none
-if defined TESTS >>"%LOG%" echo Inputs: %TESTS%
+if defined TESTS >>"%LOG%" echo Inputs:%TESTS%
 if not defined TESTS >>"%LOG%" echo Inputs: all
 set OK=0
 set CRASHED=0
 set SLOW=0
 for /f "delims=" %%F in ('dir /b /on "%INPUTS%\sample_%IN_PREFIX%*.txt" 2^>nul') do call :one "%INPUTS%\%%F" "%%~nF"
 for /f "delims=" %%F in ('dir /b /on "%INPUTS%\%IN_PREFIX%*.txt" 2^>nul') do call :one "%INPUTS%\%%F" "%%~nF"
-echo This run: %OK% ok, %CRASHED% failed, %SLOW% stopped by TIMEOUT. Saved in runs\%RUN_NAME%\
+echo This run: %OK% ok, %CRASHED% failed, %SLOW% stopped by --timeout. Saved in runs\%RUN_NAME%\
 
 :zip
 if exist "%ZIP%" del "%ZIP%"
@@ -278,7 +323,7 @@ set "ID=%~2"
 call set "ID=%%ID:%IN_PREFIX%=%%"
 if not defined TESTS goto one_run
 set WANTED=0
-for %%T in (%TESTS%) do if "%%T"=="%ID%" set WANTED=1
+for %%T in (%TESTS%) do if /i "%%T"=="%~2.txt" set WANTED=1
 if "%WANTED%"=="0" goto :eof
 :one_run
 echo Running on %~2.txt
@@ -299,27 +344,66 @@ set "STATUS=%ERRORLEVEL%"
 if exist "%FLAG%" goto one_slow
 if not "%STATUS%"=="0" goto one_failed
 copy /y "%ANSWER%" "%OUTPUTS%\" >nul
->>"%LOG%" echo %ID%: ok
+>>"%LOG%" echo %~2.txt: ok
 set /a OK+=1
 goto :eof
 :one_slow
 del "%FLAG%"
-echo WARNING: stopped %~2.txt after %LIMIT% seconds (TIMEOUT), skipped it 1>&2
->>"%LOG%" echo %ID%: stopped after %LIMIT% seconds
+echo WARNING: stopped %~2.txt after %LIMIT% seconds (--timeout), skipped it 1>&2
+>>"%LOG%" echo %~2.txt: stopped after %LIMIT% seconds
 set /a SLOW+=1
 set FAILED=1
 goto :eof
 :one_failed
 echo WARNING: the solution failed on %~2.txt, skipped it 1>&2
->>"%LOG%" echo %ID%: failed (exit code %STATUS%)
+>>"%LOG%" echo %~2.txt: failed (exit code %STATUS%)
 set /a CRASHED+=1
 set FAILED=1
 goto :eof
 
+rem Set FILE to the name of input %1 without .txt, e.g. in_01 for in_01.txt,
+rem inputs\in_01.txt, in_01 or 01, and sample_in_01 for sample_01, and RESULT
+rem to 0. RESULT is 1 if there is no such input, 2 if %1 doesn't look like one.
+:input_file
+set "RESULT=2"
+set "ARG=%~1"
+set "NAME=%~n1"
+set "LOOKS="
+if /i "%~x1"==".txt" set LOOKS=1
+if not "%~x1"=="" if not defined LOOKS goto :eof
+if /i not "%ARG:inputs\=%"=="%ARG%" set LOOKS=1
+if /i not "%ARG:inputs/=%"=="%ARG%" set LOOKS=1
+if /i "%NAME:~0,7%"=="sample_" set LOOKS=1
+if /i "%NAME:~0,3%"=="%IN_PREFIX%" set LOOKS=1
+set DIGITS=1
+for /f "delims=0123456789" %%A in ("%NAME%") do set DIGITS=0
+if "%DIGITS%"=="1" set LOOKS=1
+set "FILE=%NAME%"
+if /i "%NAME:~0,7%"=="sample_" if /i not "%NAME:~0,10%"=="sample_%IN_PREFIX%" set "FILE=sample_%IN_PREFIX%%NAME:~7%"
+if /i not "%NAME:~0,7%"=="sample_" if /i not "%NAME:~0,3%"=="%IN_PREFIX%" set "FILE=%IN_PREFIX%%NAME%"
+if not exist "%INPUTS%\%FILE%.txt" goto input_missing
+set "RESULT=0"
+goto :eof
+:input_missing
+if defined LOOKS set "RESULT=1"
+goto :eof
+
+:opt_tests_missing
+echo No input named %~1 in inputs\ 1>&2
+exit /b 1
+
+:opt_tests_empty
+echo --tests needs input names, e.g. --tests in_01.txt in_03.txt 1>&2
+exit /b 1
+
+:opt_unknown
+echo Unknown option %~1. The options are --tests and --timeout. 1>&2
+exit /b 1
+
 :limit_bad
-echo TIMEOUT must be a number of seconds, e.g. set TIMEOUT=10 1>&2
+echo --timeout needs a number of seconds, e.g. --timeout 10 1>&2
 exit /b 1
 
 :limit_needs_powershell
-echo TIMEOUT needs PowerShell, which comes with Windows 10 and 11. 1>&2
+echo --timeout needs PowerShell, which comes with Windows 10 and 11. 1>&2
 exit /b 1

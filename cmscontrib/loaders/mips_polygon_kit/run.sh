@@ -6,8 +6,10 @@
 #   ./run.sh COMMAND...     run any command, e.g. ./run.sh node code/solution.js
 #   ./run.sh zip            only zip the files already in outputs/
 #
-# TESTS="sample_01 03" ./run.sh cpp   run only on sample_in_01.txt and in_03.txt
-# TIMEOUT=10 ./run.sh cpp              stop and skip an input after 10 seconds
+# Options, before LANGUAGE or COMMAND:
+#   --tests in_01.txt sample_in_02.txt ...   run only on these inputs
+#   --timeout 10                             stop and skip an input after 10 s
+#   e.g. ./run.sh --tests in_01.txt in_03.txt --timeout 10 cpp
 #
 # Each run saves its answers and log.txt in runs/<date>_<time>/. Answers that
 # finished without crashing or timing out are copied to outputs/, which keeps
@@ -33,7 +35,6 @@ if [ "$(uname -s)" != Darwin ]; then
     cflags+=(-static -s)
     fpcflags+=(-XSs)
 fi
-mode="${1:-}"
 source=""
 
 # Print the first of the given commands that is installed.
@@ -59,15 +60,97 @@ missing() {
     exit 1
 }
 
+# Print the comment at the top of this file.
+usage() {
+    awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
+}
+
+# Print the name of input $1 without .txt, e.g. in_01 for in_01.txt,
+# inputs/in_01.txt, in_01 or 01, and sample_in_01 for sample_01.
+# Returns 1 if there is no such input, 2 if $1 doesn't look like an input.
+input_file() {
+    local name="${1##*/}" file looks="^(sample_|$in_prefix)|^[0-9]+$"
+    name="${name##*\\}"
+    case "$name" in
+    *.txt) name="${name%.txt}" ;;
+    *.*) return 2 ;;
+    esac
+    case "$name" in
+    sample_"$in_prefix"* | "$in_prefix"*) file="$name" ;;
+    sample_*) file="sample_$in_prefix${name#sample_}" ;;
+    *) file="$in_prefix$name" ;;
+    esac
+    if [ -e "$inputs_dir/$file.txt" ]; then
+        echo "$file"
+        return 0
+    fi
+    if [[ "$1" == *.txt || "$1" == *inputs[/\\]* || "$name" =~ $looks ]]; then
+        return 1
+    fi
+    return 2
+}
+
 # Print what is compiled, then run the compile command, exiting if it fails.
 compile() {
     echo "Compiling ${source#"$dir/"} with $1"
     "$@" || exit 1
 }
 
+tests=""
+limit=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+    --tests)
+        shift
+        found=0
+        while [ $# -gt 0 ]; do
+            file="$(input_file "$1")"
+            case $? in
+            0)
+                tests="$tests $file.txt"
+                found=1
+                shift
+                ;;
+            1)
+                echo "No input named $1 in inputs/" >&2
+                exit 1
+                ;;
+            *) break ;;
+            esac
+        done
+        if [ "$found" -eq 0 ]; then
+            echo "--tests needs input names, e.g. --tests in_01.txt in_03.txt" >&2
+            exit 1
+        fi
+        ;;
+    --timeout)
+        if [ $# -lt 2 ] || ! [[ "$2" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+            echo "--timeout needs a number of seconds, e.g. --timeout 10" >&2
+            exit 1
+        fi
+        limit="$2"
+        shift 2
+        ;;
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    -*)
+        echo "Unknown option $1. The options are --tests and --timeout." >&2
+        exit 1
+        ;;
+    *) break ;;
+    esac
+done
+tests="${tests# }"
+if [[ "$limit" =~ ^0*([.]0*)?$ ]]; then
+    limit=""
+fi
+mode="${1:-}"
+
 case "$mode" in
 "")
-    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+    usage
     exit 1
     ;;
 cpp)
@@ -139,15 +222,6 @@ zip)
     ;;
 esac
 
-limit="${TIMEOUT:-}"
-if [ -n "$limit" ] && ! [[ "$limit" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-    echo "TIMEOUT must be a number of seconds, e.g. TIMEOUT=10" >&2
-    exit 1
-fi
-if [[ "$limit" =~ ^0*([.]0*)?$ ]]; then
-    limit=""
-fi
-
 # Run the solution with stdin $1 and stdout $2. Returns 124 if it was stopped
 # after $limit seconds, else the solution's exit code.
 run_solution() {
@@ -197,7 +271,7 @@ if [ "${#cmd[@]}" -gt 0 ]; then
     {
         echo "Command: ${cmd[*]}"
         echo "Time limit: ${limit:-none}${limit:+ seconds}"
-        echo "Inputs: ${TESTS:-all}"
+        echo "Inputs: ${tests:-all}"
     } >"$log"
     ok=0
     crashed=0
@@ -207,7 +281,7 @@ if [ "${#cmd[@]}" -gt 0 ]; then
         # in_01 -> 01, sample_in_01 -> sample_01
         name="$(basename "$input" .txt)"
         id="${name/"$in_prefix"/}"
-        if [ -n "${TESTS:-}" ] && [[ " $TESTS " != *" $id "* ]]; then
+        if [ -n "$tests" ] && [[ " $tests " != *" $name.txt "* ]]; then
             continue
         fi
         echo "Running on $name.txt"
@@ -216,21 +290,21 @@ if [ "${#cmd[@]}" -gt 0 ]; then
         status=$?
         if [ "$status" -eq 0 ]; then
             cp "$answer" "$outputs_dir/"
-            echo "$id: ok" >>"$log"
+            echo "$name.txt: ok" >>"$log"
             ok=$((ok + 1))
         elif [ "$status" -eq 124 ]; then
-            echo "WARNING: stopped $name.txt after $limit seconds (TIMEOUT), skipped it" >&2
-            echo "$id: stopped after $limit seconds" >>"$log"
+            echo "WARNING: stopped $name.txt after $limit seconds (--timeout), skipped it" >&2
+            echo "$name.txt: stopped after $limit seconds" >>"$log"
             slow=$((slow + 1))
             failed=1
         else
             echo "WARNING: the solution failed on $name.txt, skipped it" >&2
-            echo "$id: failed (exit code $status)" >>"$log"
+            echo "$name.txt: failed (exit code $status)" >>"$log"
             crashed=$((crashed + 1))
             failed=1
         fi
     done
-    echo "This run: $ok ok, $crashed failed, $slow stopped by TIMEOUT." \
+    echo "This run: $ok ok, $crashed failed, $slow stopped by --timeout." \
         "Saved in runs/$(basename "$run_dir")/"
 fi
 

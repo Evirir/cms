@@ -85,40 +85,37 @@ from all of them.
 
 ### Choose which inputs to run
 
-Set `TESTS` to the names of the inputs without `in_` and `.txt`. For
-`sample_in_01.txt` and `in_03.txt`, that is `sample_01 03`:
+Type `--tests` and the names of the input files before the language:
 
-- Command Prompt: `set TESTS=sample_01 03`, then `run.bat cpp`
-- PowerShell: `$env:TESTS="sample_01 03"`, then `.\run.bat cpp`
-- macOS/Linux: `TESTS="sample_01 03" ./run.sh cpp`
+- Windows: `run.bat --tests sample_in_01.txt in_03.txt cpp`
+- macOS/Linux: `./run.sh --tests sample_in_01.txt in_03.txt cpp`
 
-On Windows, `TESTS` stays set until you close the window. To run every input
-again, type `set TESTS=` (Command Prompt) or `$env:TESTS=""` (PowerShell).
-On macOS/Linux it only applies to that one command.
+Shorter names work too: `in_03`, `03` and `inputs/in_03.txt` all mean
+`in_03.txt`, and `sample_01` means `sample_in_01.txt`. You can also type
+`inputs/in_0` and press Tab to fill in the rest of a file name.
 
 ### Stop slow inputs (time limit)
 
-Set `TIMEOUT` to a number of seconds. If your program takes longer than that
-on an input, it is stopped, that input is skipped, and the script goes on
-with the next input:
+Type `--timeout` and a number of seconds before the language. If your
+program takes longer than that on an input, it is stopped, that input is
+skipped, and the script goes on with the next input:
 
-- Command Prompt: `set TIMEOUT=10`, then `run.bat cpp`
-- PowerShell: `$env:TIMEOUT="10"`, then `.\run.bat cpp`
-- macOS/Linux: `TIMEOUT=10 ./run.sh cpp`
+- Windows: `run.bat --timeout 10 cpp`
+- macOS/Linux: `./run.sh --timeout 10 cpp`
 
-You can use `TESTS` and `TIMEOUT` together, e.g.
-`TESTS="01 02" TIMEOUT=10 ./run.sh cpp`. There is no time limit unless you
-set one. To remove it on Windows, type `set TIMEOUT=` or `$env:TIMEOUT=""`.
+You can use both, e.g. `run.bat --tests in_01.txt in_02.txt --timeout 10 cpp`.
+There is no time limit unless you use `--timeout`. In PowerShell, type
+`.\run.bat` instead of `run.bat`, as always.
 
 ### Your earlier answers are kept
 
 - `runs/` has one folder per run, named with its date and time, e.g.
   `runs/2026-11-14_10-05-09/`. It has that run's answers and `log.txt`, which
   lists the command and whether each input was ok, failed or stopped by
-  `TIMEOUT`. The scripts never change or delete these folders.
+  `--timeout`. The scripts never change or delete these folders.
 - `outputs/` has your latest good answer for each input. A run only copies
   an answer there if your program finished without an error and within
-  `TIMEOUT`, so a crash or a timeout never replaces an answer you already had.
+  `--timeout`, so a crash or a timeout never replaces an answer you already had.
 - The scripts can't tell if an answer is right. If a new program finishes but
   gives a wrong answer, it still replaces the one in `outputs/`. To get an
   older answer back, copy it from its folder in `runs/` into `outputs/`, then
@@ -157,8 +154,10 @@ in your IDE and copying its output, or by working an answer out by hand.
   error on that input. The script skips it (an earlier answer for it in
   `outputs/` stays), runs the other inputs and makes `output.zip`, so you can
   submit the answers that worked. What your program printed is in `runs/`.
-- **"WARNING: stopped ... (TIMEOUT)":** your program took longer than
-  `TIMEOUT` seconds on that input, so it was skipped the same way.
+- **"WARNING: stopped ... (--timeout)":** your program took longer than
+  the `--timeout` seconds on that input, so it was skipped the same way.
+- **"No input named ...":** a name after `--tests` doesn't match a file in
+  `inputs/`. Check the spelling, e.g. `in_01.txt`, not `in_1.txt`.
 
 ## More details
 
@@ -175,7 +174,7 @@ in your IDE and copying its output, or by working an answer out by hand.
 - **Compiler flags:** C++ and C get the same flags as CMS, e.g.
   `-DEVAL -std=gnu++20 -O2 -pipe -static -s` for C++ (not static on macOS).
   MSVC gets `/DEVAL /std:c++20 /O2 /EHsc` (`/std:c11` for C).
-- **`TIMEOUT` on Windows** uses PowerShell, which comes with Windows 10 and
+- **`--timeout` on Windows** uses PowerShell, which comes with Windows 10 and
   11. A stopped program is killed together with any programs it started.
 - **C# on Windows without Mono:** the script uses the `csc` that comes with
   Windows (.NET Framework), which only knows C# 5.

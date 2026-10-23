@@ -548,13 +548,13 @@ def test_output_only_kit_keeps_runs_and_good_answers(
     run_sh = ["bash", str(kit / "run.sh")]
     subprocess.run([*run_sh, "cat"], check=True, cwd=tmp_path)
 
+    tests = ["in_01.txt", "02", str(kit / "inputs" / "in_03.txt")]
     result = subprocess.run(
-        [*run_sh, "bash", str(solution)],
+        [*run_sh, "--tests", *tests, "--timeout", "1", "bash", str(solution)],
         check=False,
         capture_output=True,
         text=True,
         cwd=tmp_path,
-        env={**os.environ, "TIMEOUT": "1", "TESTS": "01 02 03"},
         timeout=20,
     )
 
@@ -570,8 +570,9 @@ def test_output_only_kit_keeps_runs_and_good_answers(
     runs = sorted((kit / "runs").iterdir())
     assert len(runs) == 2
     log = (runs[1] / "log.txt").read_text()
-    assert f"{slow.removesuffix('.txt')}: stopped after 1 seconds" in log
-    assert f"{crashed.removesuffix('.txt')}: failed (exit code 3)" in log
+    assert "Inputs: in_01.txt in_02.txt in_03.txt" in log
+    assert f"in_{slow}: stopped after 1 seconds" in log
+    assert f"in_{crashed}: failed (exit code 3)" in log
     outputs = kit / "outputs"
     for name, content in answers.items():
         expected = content if name in (crashed, slow) else f"new {content}"
@@ -579,6 +580,45 @@ def test_output_only_kit_keeps_runs_and_good_answers(
     assert (outputs / "out_sample_01.txt").read_text() == "in1\n"
     with zipfile.ZipFile(kit / "output.zip") as output:
         assert sorted(output.namelist()) == sorted(task.submission_format)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [
+        (["--tests", "in_9.txt", "cat"], "No input named in_9.txt"),
+        (["--tests", "sample_07", "cat"], "No input named sample_07"),
+        (["--tests", "cat"], "--tests needs input names"),
+        (["--timeout", "ten", "cat"], "--timeout needs a number of seconds"),
+        (["--timeout"], "--timeout needs a number of seconds"),
+        (["--test", "01", "cat"], "Unknown option --test"),
+    ],
+)
+def test_output_only_kit_rejects_bad_options(
+    mixed_package: Path, tmp_path: Path, args: Sequence[str], error: str
+) -> None:
+    cacher = FakeFileCacher()
+    task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    kit = tmp_path / "kit"
+    with zipfile.ZipFile(
+        io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
+    ) as attachment:
+        attachment.extractall(kit)
+
+    result = subprocess.run(
+        ["bash", str(kit / "run.sh"), *args],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 1
+    assert error in result.stderr
+    assert not (kit / "runs").exists()
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
