@@ -751,6 +751,7 @@ def test_multi_contest_loader_creates_tasks_for_every_problem(
     contest, tasks, participations = loader.get_contest()
     assert contest.name == "practice"
     assert contest.description == "Practice Contest"
+    assert contest.allow_user_tests
     assert tasks == ["beta-output", "beta-code", "alpha-code"]
     assert participations == []
     assert isinstance(loader.get_task_loader("beta-code"), MIPSPolygonBatchTaskLoader)
@@ -812,7 +813,7 @@ def test_title_prefers_english_name(mixed_package: Path) -> None:
 
 
 def test_default_task_args(mixed_package: Path) -> None:
-    """Tasks default to OI restricted feedback, IOI 2017- scoring, 60 submissions."""
+    """Tasks default to OI restricted feedback, IOI 2017- scoring, 60/30 limits."""
     cacher = FakeFileCacher()
     batch = MIPSPolygonBatchTaskLoader(str(mixed_package), cacher).get_task(
         get_statement=False
@@ -825,6 +826,7 @@ def test_default_task_args(mixed_package: Path) -> None:
         assert task.feedback_level == "oi_restricted"
         assert task.score_mode == "max_subtask"
         assert task.max_submission_number == 60
+        assert task.max_user_test_number == 30
 
 
 def test_cms_conf_general_overrides_defaults(mixed_package: Path) -> None:

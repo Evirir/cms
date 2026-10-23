@@ -226,7 +226,7 @@ An optional :file:`files/cms_conf.py` in the package may define:
 - ``OUTPUT_ONLY_GROUP_SUBSTRING``: the substring marking OutputOnly groups, instead of ``OO``;
 - ``SAMPLES_GROUP``: the exact name of the samples group.
 
-Every task gets ``feedback_level = "oi_restricted"``, ``score_mode = "max_subtask"`` (IOI 2017-) and ``max_submission_number = 60`` by default; override them in ``general``, e.g. ``general = {"feedback_level": "full", "max_submission_number": None}``.
+Every task gets ``feedback_level = "oi_restricted"``, ``score_mode = "max_subtask"`` (IOI 2017-), ``max_submission_number = 60`` and ``max_user_test_number = 30`` by default; override them in ``general``, e.g. ``general = {"feedback_level": "full", "max_submission_number": None}``.
 
 Importing a contest
 ^^^^^^^^^^^^^^^^^^^
@@ -235,7 +235,7 @@ Importing a contest
 
     cmsImportContest -i -L mips_polygon_contest path/to/contest
 
-The contest is named after the package directory, and its tasks follow the order of :file:`contest.xml`. As with ``polygon_contest``, an optional :file:`contestants.txt` lists participations of existing users, one per line as ``username;password;first_name;last_name;hidden``.
+The contest is named after the package directory, allows user tests, and its tasks follow the order of :file:`contest.xml`. As with ``polygon_contest``, an optional :file:`contestants.txt` lists participations of existing users, one per line as ``username;password;first_name;last_name;hidden``.
 
 To update an existing contest, name the directory as the contest and run:
 

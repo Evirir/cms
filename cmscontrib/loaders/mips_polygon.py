@@ -120,6 +120,7 @@ DEFAULT_TASK_ARGS: Mapping[str, str | int] = {
     "feedback_level": FEEDBACK_LEVEL_OI_RESTRICTED,
     "score_mode": SCORE_MODE_MAX_SUBTASK,
     "max_submission_number": 60,
+    "max_user_test_number": 30,
 }
 
 
@@ -974,6 +975,7 @@ class MIPSPolygonMultiContestLoader(ContestLoader):
             description=description,
             groups=[group],
             main_group=group,
+            allow_user_tests=True,
         )
         logger.info("Contest parameters loaded.")
         return contest, list(self.task_packages), self._participations()
