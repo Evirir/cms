@@ -47,7 +47,7 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
         super().setUp()
         self.setUpMocks("OutputOnly")
         self.file_cacher = MagicMock()
-        self.file_cacher.get_file_content.return_value = b"10 12\r\n"
+        self.file_cacher.get_file_content.return_value = b"output\r\n"
         self.file_cacher.get_file.side_effect = lambda digest: io.BytesIO(
             self.file_cacher.get_file_content.return_value)
 
@@ -147,14 +147,14 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
     def test_no_bom_is_evaluated_as_is(self):
         for newline in NEWLINES:
             with self.subTest(newline=newline):
-                self.assertEqual(self.evaluate(b"10 12" + newline),
+                self.assertEqual(self.evaluate(b"output" + newline),
                                  {"digest": "digest of 023"})
                 self.file_cacher.get_file_content.assert_not_called()
 
     def assertConvertedForEachNewline(self, encode):
         for newline in NEWLINES:
             with self.subTest(newline=newline):
-                text = "10 12" + newline.decode()
+                text = "output" + newline.decode()
                 self.assertEqual(
                     self.evaluate(encode("\ufeff" + text)),
                     {"digest": None, "content": text.encode()})
@@ -183,7 +183,7 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
                                  {"digest": "digest of 023"})
 
     def test_nothing_is_stored(self):
-        self.evaluate("\ufeff10 12\r\n".encode("utf-16-le"))
+        self.evaluate("\ufeffoutput\r\n".encode("utf-16-le"))
         self.file_cacher.put_file_content.assert_not_called()
         self.file_cacher.put_file.assert_not_called()
 
