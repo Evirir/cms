@@ -18,6 +18,7 @@
 
 """Tests for the OutputOnly task type."""
 
+import io
 import unittest
 from unittest.mock import MagicMock
 
@@ -47,6 +48,8 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
         self.setUpMocks("OutputOnly")
         self.file_cacher = MagicMock()
         self.file_cacher.get_file_content.return_value = b"10 12\r\n"
+        self.file_cacher.get_file.side_effect = lambda digest: io.BytesIO(
+            self.file_cacher.get_file_content.return_value)
 
     @staticmethod
     def job(files):
@@ -137,8 +140,7 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
         self.eval_output.side_effect = eval_output
         tt.evaluate(job, self.file_cacher)
 
-        self.file_cacher.get_file_content.assert_called_once_with(
-            "digest of 023")
+        self.file_cacher.get_file.assert_called_once_with("digest of 023")
         self.assertResultsInJob(job, True, str(OUTCOME), TEXT, {})
         return evaluated
 
@@ -147,6 +149,7 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
             with self.subTest(newline=newline):
                 self.assertEqual(self.evaluate(b"10 12" + newline),
                                  {"digest": "digest of 023"})
+                self.file_cacher.get_file_content.assert_not_called()
 
     def assertConvertedForEachNewline(self, encode):
         for newline in NEWLINES:
@@ -155,6 +158,8 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
                 self.assertEqual(
                     self.evaluate(encode("\ufeff" + text)),
                     {"digest": None, "content": text.encode()})
+                self.file_cacher.get_file_content.assert_called_once_with(
+                    "digest of 023")
 
     def test_utf16_le_bom_is_evaluated_as_utf8(self):
         self.assertConvertedForEachNewline(lambda s: s.encode("utf-16-le"))
@@ -162,12 +167,20 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
     def test_utf16_be_bom_is_evaluated_as_utf8(self):
         self.assertConvertedForEachNewline(lambda s: s.encode("utf-16-be"))
 
+    def test_utf32_le_bom_is_evaluated_as_utf8(self):
+        self.assertConvertedForEachNewline(lambda s: s.encode("utf-32-le"))
+
+    def test_utf32_be_bom_is_evaluated_as_utf8(self):
+        self.assertConvertedForEachNewline(lambda s: s.encode("utf-32-be"))
+
     def test_utf8_bom_is_stripped(self):
         self.assertConvertedForEachNewline(lambda s: s.encode("utf-8"))
 
-    def test_undecodable_utf16_is_evaluated_as_is(self):
-        self.assertEqual(self.evaluate(b"\xff\xfe1"),
-                         {"digest": "digest of 023"})
+    def test_undecodable_is_evaluated_as_is(self):
+        for content in [b"\xff\xfe1", b"\xff\xfe\x00\x001"]:
+            with self.subTest(content=content):
+                self.assertEqual(self.evaluate(content),
+                                 {"digest": "digest of 023"})
 
     def test_nothing_is_stored(self):
         self.evaluate("\ufeff10 12\r\n".encode("utf-16-le"))

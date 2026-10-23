@@ -29,6 +29,7 @@ import os
 import tempfile
 
 from cms import config
+from cms.db.filecacher import FileCacher
 from cms.grading.Job import Job
 from cms.grading.ParameterTypes import ParameterTypeChoice
 from . import TaskType, eval_output
@@ -43,28 +44,53 @@ def N_(message):
 
 
 # UTF-16 BOMs come from e.g. Windows PowerShell's `>` or Notepad's "Unicode".
+# UTF-32LE's BOM starts with UTF-16LE's, so it must be checked first.
 _BOM_ENCODINGS = [
     (codecs.BOM_UTF8, "utf-8-sig"),
+    (codecs.BOM_UTF32_LE, "utf-32"),
+    (codecs.BOM_UTF32_BE, "utf-32"),
     (codecs.BOM_UTF16_LE, "utf-16"),
     (codecs.BOM_UTF16_BE, "utf-16"),
 ]
+_MAX_BOM_LENGTH = max(len(bom) for bom, _ in _BOM_ENCODINGS)
 
 
-def _without_bom(content: bytes) -> bytes | None:
-    """Re-encode a user output that starts with a BOM as plain UTF-8.
+def _bom_encoding(head: bytes) -> str | None:
+    """Return the encoding announced by the BOM at the start of head.
 
-    content: the user output.
+    head: the first bytes of a file.
 
-    return: the output as UTF-8 without the BOM, or None if it has no
-        UTF-8 or UTF-16 BOM or does not decode.
+    return: the codec to decode the file with, or None if there is no
+        UTF-8, UTF-16 or UTF-32 BOM.
 
     """
     for bom, encoding in _BOM_ENCODINGS:
-        if content.startswith(bom):
-            try:
-                return content.decode(encoding).encode("utf-8")
-            except UnicodeDecodeError:
-                return None
+        if head.startswith(bom):
+            return encoding
+    return None
+
+
+def _without_bom(file_cacher: FileCacher, digest: str) -> bytes | None:
+    """Re-encode a user output that starts with a BOM as plain UTF-8.
+
+    Only the first bytes are read unless the file has a BOM.
+
+    file_cacher: the file cacher holding the user output.
+    digest: the digest of the user output.
+
+    return: the output as UTF-8 without the BOM, or None if it has no
+        BOM or does not decode.
+
+    """
+    with file_cacher.get_file(digest) as f:
+        encoding = _bom_encoding(f.read(_MAX_BOM_LENGTH))
+    if encoding is None:
+        return None
+    try:
+        return file_cacher.get_file_content(digest).decode(encoding) \
+            .encode("utf-8")
+    except UnicodeDecodeError:
+        return None
     return None
 
 
@@ -156,8 +182,7 @@ class OutputOnly(TaskType):
         checker_codename = \
             OutputOnly.CHECKER_CODENAME if self._uses_checker() else None
         user_output_digest = job.files[user_output_filename].digest
-        converted = _without_bom(
-            file_cacher.get_file_content(user_output_digest))
+        converted = _without_bom(file_cacher, user_output_digest)
 
         # First and only step: eval the user output.
         if converted is None:
