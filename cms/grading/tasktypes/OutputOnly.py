@@ -23,6 +23,7 @@
 
 """
 
+import codecs
 import logging
 
 from cms.grading.Job import Job
@@ -36,6 +37,36 @@ logger = logging.getLogger(__name__)
 # Dummy function to mark translatable string.
 def N_(message):
     return message
+
+
+# UTF-16 BOMs come from e.g. Windows PowerShell's `>` or Notepad's "Unicode".
+_BOM_ENCODINGS = [
+    (codecs.BOM_UTF8, "utf-8-sig"),
+    (codecs.BOM_UTF16_LE, "utf-16"),
+    (codecs.BOM_UTF16_BE, "utf-16"),
+]
+
+
+def _without_bom(file_cacher, digest: str) -> str:
+    """Return the digest of the file re-encoded as UTF-8 without its BOM.
+
+    file_cacher: the file cacher holding the file.
+    digest: digest of the user output.
+
+    return: digest of the UTF-8 copy if the file starts with a UTF-8 or
+        UTF-16 BOM and decodes cleanly, otherwise the given digest.
+
+    """
+    content = file_cacher.get_file_content(digest)
+    for bom, encoding in _BOM_ENCODINGS:
+        if content.startswith(bom):
+            try:
+                text = content.decode(encoding)
+            except UnicodeDecodeError:
+                return digest
+            return file_cacher.put_file_content(
+                text.encode("utf-8"), "User output %s without BOM" % digest)
+    return digest
 
 
 class OutputOnly(TaskType):
@@ -123,11 +154,14 @@ class OutputOnly(TaskType):
             job.plus = {}
             return
 
+        user_output_digest = _without_bom(
+            file_cacher, job.files[user_output_filename].digest)
+
         # First and only step: eval the user output.
         box_success, outcome, text, admin_text = eval_output(
             file_cacher, job,
             OutputOnly.CHECKER_CODENAME if self._uses_checker() else None,
-            user_output_digest=job.files[user_output_filename].digest)
+            user_output_digest=user_output_digest)
 
         # Fill in the job with the results.
         job.success = box_success
