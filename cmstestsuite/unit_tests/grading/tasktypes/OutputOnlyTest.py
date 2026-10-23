@@ -31,6 +31,7 @@ from cmstestsuite.unit_tests.grading.tasktypes.tasktypetestutils import \
 
 FILE_001 = File(digest="digest of 001", filename="out_001.txt")
 FILE_023 = File(digest="digest of 023", filename="out_023.txt")
+NEWLINES = [b"\n", b"\r\n"]
 
 
 class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
@@ -119,6 +120,8 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
 
     def evaluate(self, content):
         """Evaluate a user output, recording what eval_output was given."""
+        self.file_cacher.reset_mock()
+        self.eval_output.reset_mock()
         tt, job = self.prepare(["comparator"], {"out_023.txt": FILE_023})
         self.file_cacher.get_file_content.return_value = content
         evaluated = {}
@@ -140,22 +143,27 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
         return evaluated
 
     def test_no_bom_is_evaluated_as_is(self):
-        self.assertEqual(self.evaluate(b"10 12\r\n"),
-                         {"digest": "digest of 023"})
+        for newline in NEWLINES:
+            with self.subTest(newline=newline):
+                self.assertEqual(self.evaluate(b"10 12" + newline),
+                                 {"digest": "digest of 023"})
+
+    def assertConvertedForEachNewline(self, encode):
+        for newline in NEWLINES:
+            with self.subTest(newline=newline):
+                text = "10 12" + newline.decode()
+                self.assertEqual(
+                    self.evaluate(encode("\ufeff" + text)),
+                    {"digest": None, "content": text.encode()})
 
     def test_utf16_le_bom_is_evaluated_as_utf8(self):
-        self.assertEqual(
-            self.evaluate("\ufeff10 12\r\n".encode("utf-16-le")),
-            {"digest": None, "content": b"10 12\r\n"})
+        self.assertConvertedForEachNewline(lambda s: s.encode("utf-16-le"))
 
     def test_utf16_be_bom_is_evaluated_as_utf8(self):
-        self.assertEqual(
-            self.evaluate("\ufeff10 12\n".encode("utf-16-be")),
-            {"digest": None, "content": b"10 12\n"})
+        self.assertConvertedForEachNewline(lambda s: s.encode("utf-16-be"))
 
     def test_utf8_bom_is_stripped(self):
-        self.assertEqual(self.evaluate(b"\xef\xbb\xbf10 12\n"),
-                         {"digest": None, "content": b"10 12\n"})
+        self.assertConvertedForEachNewline(lambda s: s.encode("utf-8"))
 
     def test_undecodable_utf16_is_evaluated_as_is(self):
         self.assertEqual(self.evaluate(b"\xff\xfe1"),
@@ -165,6 +173,7 @@ class TestEvaluate(TaskTypeTestMixin, unittest.TestCase):
         self.evaluate("\ufeff10 12\r\n".encode("utf-16-le"))
         self.file_cacher.put_file_content.assert_not_called()
         self.file_cacher.put_file.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
