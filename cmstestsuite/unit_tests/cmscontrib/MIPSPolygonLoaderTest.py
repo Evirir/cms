@@ -592,6 +592,10 @@ def test_output_only_kit_keeps_runs_and_good_answers(
         (["--timeout", "ten", "cat"], "--timeout needs a number of seconds"),
         (["--timeout"], "--timeout needs a number of seconds"),
         (["--test", "01", "cat"], "Unknown option --test"),
+        (["--std", "x", "cpp"], "--std needs a C++ or C standard"),
+        (["--std", "c++", "cpp"], "--std needs a C++ or C standard"),
+        (["--std"], "--std needs a C++ or C standard"),
+        (["--std", "17", "cat"], "--std only works with cpp and c"),
     ],
 )
 def test_output_only_kit_rejects_bad_options(
@@ -619,6 +623,120 @@ def test_output_only_kit_rejects_bad_options(
     assert result.returncode == 1
     assert error in result.stderr
     assert not (kit / "runs").exists()
+
+
+def write_old_compiler(path: Path, real_compiler: str, rejected: Sequence[str]) -> Path:
+    """Write a script at path that runs real_compiler but rejects -std=rejected."""
+    path.write_text(
+        "#!/bin/bash\n"
+        'for arg in "$@"; do\n'
+        f'    case " {" ".join(f"-std={name}" for name in rejected)} " in\n'
+        '    *" $arg "*) echo "unrecognized option $arg" >&2; exit 1 ;;\n'
+        "    esac\n"
+        "done\n"
+        f'exec {real_compiler} "$@"\n'
+    )
+    path.chmod(0o755)
+    return path
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+@pytest.mark.parametrize(
+    ("mode", "args", "rejected", "std", "warning"),
+    [
+        # Like g++ 8 and clang 5 to 9, which only know C++20 as 2a.
+        ("cpp", [], ["gnu++20", "c++20"], "gnu++2a", False),
+        ("cpp", [], ["gnu++20", "c++20", "gnu++2a", "c++2a"], "gnu++17", True),
+        ("cpp", [], [], "gnu++20", False),
+        ("cpp", ["--std", "17"], [], "gnu++17", False),
+        ("cpp", ["--std", "17"], ["gnu++17"], "c++17", False),
+        ("cpp", ["--std", "c++17"], [], "c++17", False),
+        ("cpp", ["--std", "gnu++14"], [], "gnu++14", False),
+        ("cpp", ["--std", "20"], ["gnu++20", "c++20"], "gnu++2a", False),
+        ("cpp", ["--std", "23"], ["gnu++23", "c++23"], "gnu++2b", False),
+        ("c", [], [], "gnu11", False),
+        ("c", [], ["gnu11", "c11", "gnu1x", "c1x"], "gnu99", True),
+        ("c", ["--std", "99"], [], "gnu99", False),
+        ("c", ["--std", "c99"], [], "c99", False),
+    ],
+)
+def test_output_only_kit_picks_std(
+    mixed_package: Path,
+    tmp_path: Path,
+    mode: str,
+    args: Sequence[str],
+    rejected: Sequence[str],
+    std: str,
+    warning: bool,
+) -> None:
+    solution, real_compiler = {
+        "cpp": (KIT_ECHO_SOLUTIONS["cpp"], "g++"),
+        "c": (KIT_ECHO_SOLUTIONS["c"], "gcc"),
+    }[mode]
+    if shutil.which(real_compiler) is None:
+        pytest.skip(f"needs {real_compiler}")
+    cacher = FakeFileCacher()
+    task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    kit = tmp_path / "kit"
+    with zipfile.ZipFile(
+        io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
+    ) as attachment:
+        attachment.extractall(kit)
+    (kit / solution[0]).write_text(solution[1])
+    compiler = write_old_compiler(tmp_path / "old-compiler", real_compiler, rejected)
+    variable = "CXX" if mode == "cpp" else "CC"
+
+    result = subprocess.run(
+        ["bash", str(kit / "run.sh"), *args, mode],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env={**os.environ, variable: str(compiler)},
+    )
+
+    assert f"with {compiler} -std={std}\n" in result.stdout
+    assert ("doesn't know C" in result.stderr) == warning
+    with zipfile.ZipFile(kit / "output.zip") as output:
+        assert output.read("out_03.txt") == b"in4\n"
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_output_only_kit_rejects_unknown_std(
+    mixed_package: Path, tmp_path: Path
+) -> None:
+    if shutil.which("g++") is None:
+        pytest.skip("needs g++")
+    cacher = FakeFileCacher()
+    task = MIPSPolygonOutputOnlyTaskLoader(str(mixed_package), cacher).get_task(
+        get_statement=False
+    )
+    assert task is not None
+    kit = tmp_path / "kit"
+    with zipfile.ZipFile(
+        io.BytesIO(cacher.files[task.attachments["attachment.zip"].digest])
+    ) as attachment:
+        attachment.extractall(kit)
+
+    compiler = write_old_compiler(
+        tmp_path / "old-compiler", "g++", ["gnu++23", "c++23", "gnu++2b", "c++2b"]
+    )
+
+    result = subprocess.run(
+        ["bash", str(kit / "run.sh"), "--std", "23", "cpp"],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env={**os.environ, "CXX": str(compiler)},
+    )
+
+    assert result.returncode == 1
+    assert f"{compiler} doesn't know --std 23" in result.stderr
+    assert not (kit / "outputs").exists()
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")

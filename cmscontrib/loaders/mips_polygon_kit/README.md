@@ -107,6 +107,23 @@ You can use both, e.g. `run.bat --tests in_01.txt in_02.txt --timeout 10 cpp`.
 There is no time limit unless you use `--timeout`. In PowerShell, type
 `.\run.bat` instead of `run.bat`, as always.
 
+### Choose the C++ or C version
+
+CMS compiles C++ as C++20 and C as C11. The scripts do the same if your
+compiler can. If your compiler is too old for that, the scripts use the
+newest version it has and print a warning. Code that only uses older
+features still works.
+
+To choose a version yourself, type `--std` and the version before `cpp` or
+`c`:
+
+- Windows: `run.bat --std 17 cpp`
+- macOS/Linux: `./run.sh --std 17 cpp`
+
+`--std 17` means C++17 with GNU extensions (`gnu++17`) if your compiler has
+them. Type `--std c++17` for plain C++17, or e.g. `--std gnu++17`,
+`--std 99` or `--std c99` (for C).
+
 ### Your earlier answers are kept
 
 - `runs/` has one folder per run, named with its date and time, e.g.
@@ -174,6 +191,14 @@ in your IDE and copying its output, or by working an answer out by hand.
 - **Compiler flags:** C++ and C get the same flags as CMS, e.g.
   `-DEVAL -std=gnu++20 -O2 -pipe -static -s` for C++ (not static on macOS).
   MSVC gets `/DEVAL /std:c++20 /O2 /EHsc` (`/std:c11` for C).
+- **Which `-std` is used:** without `--std`, the first one the compiler
+  accepts of `gnu++20`, `c++20`, `gnu++2a`, `c++2a`, then the same for 17
+  (`1z`), 14 (`1y`) and 11 (`0x`); for C, `gnu11`, `c11`, `gnu1x`, `c1x`,
+  then 99 (`9x`). g++ 8 and clang 5 to 9 only know C++20 as `gnu++2a`. MSVC
+  tries `/std:c++20`, `/std:c++latest`, `/std:c++17`, `/std:c++14`, and
+  `/std:c11` or nothing for C. `--std N` tries `gnu++N`, then `c++N`, and the
+  old name of N (e.g. `2b` for 23); `--std c++N` skips `gnu++N`. MSVC has no `gnu` versions, so
+  it gets `/std:c++N`. The scripts check a `-std` by compiling an empty file.
 - **`--timeout` on Windows** uses PowerShell, which comes with Windows 10 and
   11. A stopped program is killed together with any programs it started.
 - **C# on Windows without Mono:** the script uses the `csc` that comes with

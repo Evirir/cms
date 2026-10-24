@@ -9,11 +9,16 @@
 # Options, before LANGUAGE or COMMAND:
 #   --tests in_01.txt sample_in_02.txt ...   run only on these inputs
 #   --timeout 10                             stop and skip an input after 10 s
+#   --std 17                                 cpp and c: compile as C++17 (gnu++17
+#                                            if the compiler has it), or e.g.
+#                                            --std c++17, --std gnu++17, --std c99
 #   e.g. ./run.sh --tests in_01.txt in_03.txt --timeout 10 cpp
 #
 # Each run saves its answers and log.txt in runs/<date>_<time>/. Answers that
 # finished without crashing or timing out are copied to outputs/, which keeps
 # the latest good answer of every input and is zipped into output.zip.
+# Without --std, cpp and c use the newest standard up to the one CMS uses
+# (gnu++20, gnu11) that the compiler has.
 # Set CXX (cpp) or CC (c) to choose a compiler. No compiler? See README.md.
 set -u
 
@@ -26,9 +31,12 @@ in_prefix="in_"
 out_prefix="out_"
 code_dir="$dir/code"
 binary="$code_dir/solution"
-# Same flags as the CMS languages. macOS can't link statically.
-cxxflags=(-DEVAL -std=gnu++20 -O2 -pipe)
-cflags=(-DEVAL -std=gnu11 -O2 -pipe)
+# Same flags as the CMS languages, which use C++20 and C11. -std is added
+# later. macOS can't link statically.
+cms_cxx_std=20
+cms_c_std=11
+cxxflags=(-DEVAL -O2 -pipe)
+cflags=(-DEVAL -O2 -pipe)
 fpcflags=(-dEVAL -O2)
 if [ "$(uname -s)" != Darwin ]; then
     cxxflags+=(-static -s)
@@ -90,14 +98,101 @@ input_file() {
     return 2
 }
 
+# Print the other name of C++ ($1 is c++) or C ($1 is c) standard $2, e.g.
+# 2a for 20, which compilers that are too old for the final name know.
+std_alias() {
+    case "$1 $2" in
+    "c++ 23") echo 2b ;;
+    "c++ 20") echo 2a ;;
+    "c++ 17") echo 1z ;;
+    "c++ 14") echo 1y ;;
+    "c++ 11") echo 0x ;;
+    "c 11") echo 1x ;;
+    "c 99") echo 9x ;;
+    esac
+}
+
+# Print the -std values to try for language $1 (c++ or c), best first: the
+# ones for --std $2, or with no $2 the CMS standard and then older ones.
+# GNU (gnu++17) comes before standard (c++17) unless $2 asks for c++/c.
+std_candidates() {
+    local language="$1" choice="$2" gnu="gnu${1#c}" versions version kind=gnu
+    if [ -z "$choice" ]; then
+        if [ "$language" = c++ ]; then
+            versions="20 2a 17 1z 14 1y 11 0x"
+        else
+            versions="11 1x 99 9x"
+        fi
+    else
+        version="${choice#gnu}"
+        if [ "$version" = "$choice" ] && [ "${choice#c}" != "$choice" ]; then
+            kind=standard
+            version="${choice#c}"
+        fi
+        version="${version#++}"
+        versions="$version $(std_alias "$language" "$version")"
+    fi
+    for version in $versions; do
+        if [ "$kind" = gnu ]; then
+            echo "$gnu$version"
+        fi
+        echo "$language$version"
+    done
+}
+
+# Print the first of -std values $3... that compiler $1 accepts for language
+# $2 (c++ or c).
+first_std() {
+    local compiler="$1" language="$2" std
+    shift 2
+    for std in "$@"; do
+        if "$compiler" -std="$std" -x "$language" -fsyntax-only - \
+            </dev/null >/dev/null 2>&1; then
+            echo "$std"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Set std_flag to -std=... for compiler $1, language $2 (c++ or c) and the
+# CMS standard $3: --std, or the best standard the compiler has.
+std_flag=""
+pick_std() {
+    local -a candidates
+    local std name="C" example=99 cms
+    if [ "$2" = c++ ]; then
+        name="C++"
+        example=17
+    fi
+    candidates=($(std_candidates "$2" "$std_choice"))
+    if ! std="$(first_std "$1" "$2" "${candidates[@]}")"; then
+        if [ -n "$std_choice" ]; then
+            echo "$1 doesn't know --std $std_choice. Try an older standard," \
+                "e.g. --std $example, or a newer compiler." >&2
+            exit 1
+        fi
+        echo "WARNING: $1 doesn't know $name$3 or older standards, so compiling" \
+            "without -std." >&2
+        return
+    fi
+    std_flag="-std=$std"
+    cms=" $(std_candidates "$2" "$3" | tr '\n' ' ') "
+    if [ -z "$std_choice" ] && [[ "$cms" != *" $std "* ]]; then
+        echo "WARNING: $1 doesn't know $name$3, which CMS uses, so compiling with" \
+            "-std=$std. If your code needs $name$3, use a newer compiler." >&2
+    fi
+}
+
 # Print what is compiled, then run the compile command, exiting if it fails.
 compile() {
-    echo "Compiling ${source#"$dir/"} with $1"
+    echo "Compiling ${source#"$dir/"} with $1${std_flag:+ $std_flag}"
     "$@" || exit 1
 }
 
 tests=""
 limit=""
+std_choice=""
 while [ $# -gt 0 ]; do
     case "$1" in
     --tests)
@@ -131,12 +226,21 @@ while [ $# -gt 0 ]; do
         limit="$2"
         shift 2
         ;;
+    --std)
+        if [ $# -lt 2 ] || ! [[ "$2" =~ ^(gnu|c)?(\+\+)?[0-9][0-9a-z]$ ]]; then
+            echo "--std needs a C++ or C standard, e.g. --std 17, --std c++17," \
+                "--std gnu++17 or --std c99" >&2
+            exit 1
+        fi
+        std_choice="$2"
+        shift 2
+        ;;
     -h | --help)
         usage
         exit 0
         ;;
     -*)
-        echo "Unknown option $1. The options are --tests and --timeout." >&2
+        echo "Unknown option $1. The options are --tests, --timeout and --std." >&2
         exit 1
         ;;
     *) break ;;
@@ -147,6 +251,10 @@ if [[ "$limit" =~ ^0*([.]0*)?$ ]]; then
     limit=""
 fi
 mode="${1:-}"
+if [ -n "$std_choice" ] && [ "$mode" != cpp ] && [ "$mode" != c ]; then
+    echo "--std only works with cpp and c." >&2
+    exit 1
+fi
 
 case "$mode" in
 "")
@@ -158,7 +266,8 @@ cpp)
     cxx="${CXX:-$(first_command g++ clang++)}"
     command -v "$cxx" >/dev/null 2>&1 ||
         missing "C++ compiler" "Set CXX to yours: CXX=/path/to/g++ ./run.sh cpp"
-    compile "$cxx" "${cxxflags[@]}" -o "$binary" "$source"
+    pick_std "$cxx" c++ "$cms_cxx_std"
+    compile "$cxx" ${std_flag:+"$std_flag"} "${cxxflags[@]}" -o "$binary" "$source"
     cmd=("$binary")
     ;;
 c)
@@ -166,7 +275,8 @@ c)
     cc="${CC:-$(first_command gcc clang)}"
     command -v "$cc" >/dev/null 2>&1 ||
         missing "C compiler" "Set CC to yours: CC=/path/to/gcc ./run.sh c"
-    compile "$cc" "${cflags[@]}" -o "$binary" "$source" -lm
+    pick_std "$cc" c "$cms_c_std"
+    compile "$cc" ${std_flag:+"$std_flag"} "${cflags[@]}" -o "$binary" "$source" -lm
     cmd=("$binary")
     ;;
 py)

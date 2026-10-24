@@ -9,11 +9,16 @@ rem
 rem Options, before LANGUAGE or COMMAND:
 rem   --tests in_01.txt sample_in_02.txt ...   run only on these inputs
 rem   --timeout 10                             stop and skip an input after 10 s
+rem   --std 17                                 cpp and c: compile as C++17 (gnu++17
+rem                                            if the compiler has it), or e.g.
+rem                                            --std c++17, --std gnu++17, --std c99
 rem   e.g. run.bat --tests in_01.txt in_03.txt --timeout 10 cpp
 rem
 rem Each run saves its answers and log.txt in runs\<date>_<time>\. Answers that
 rem finished without crashing or timing out are copied to outputs\, which keeps
 rem the latest good answer of every input and is zipped into output.zip.
+rem Without --std, cpp and c use the newest standard up to the one CMS uses
+rem (gnu++20, gnu11) that the compiler has.
 rem Set CXX (cpp) or CC (c) to choose a compiler; cpp and c also find MSVC's cl.
 rem No compiler? See README.md.
 setlocal
@@ -28,20 +33,27 @@ set "OUT_PREFIX=out_"
 set "CODE=%DIR%code"
 set "BINARY=%DIR%code\solution.exe"
 set "OBJECT=%DIR%code\solution.obj"
-rem Same flags as the CMS languages.
-set "CXXFLAGS=-DEVAL -std=gnu++20 -O2 -pipe -static -s"
-set "CFLAGS=-DEVAL -std=gnu11 -O2 -pipe -static -s"
+rem Same flags as the CMS languages, which use C++20 and C11. -std is added
+rem later.
+set "CMS_CXX_STD=20"
+set "CMS_C_STD=11"
+set "CXXFLAGS=-DEVAL -O2 -pipe -static -s"
+set "CFLAGS=-DEVAL -O2 -pipe -static -s"
 rem The closest MSVC (cl, clang-cl) equivalents.
-set "MSVC_CXXFLAGS=/nologo /DEVAL /std:c++20 /O2 /EHsc"
-set "MSVC_CFLAGS=/nologo /DEVAL /std:c11 /O2"
+set "MSVC_CXXFLAGS=/nologo /DEVAL /O2 /EHsc"
+set "MSVC_CFLAGS=/nologo /DEVAL /O2"
+rem Empty files that cl compiles to check that it knows a /std.
+set "STD_CHECK=%DIR%code\std_check"
 set "CMD="
 set "TESTS="
 set "LIMIT="
+set "STD="
 
 :options
 if "%~1"=="" goto options_done
 if "%~1"=="--tests" goto opt_tests
 if "%~1"=="--timeout" goto opt_timeout
+if "%~1"=="--std" goto opt_std
 if /i "%~1"=="--help" goto usage
 set "ARG=%~1"
 if "%ARG:~0,1%"=="-" goto opt_unknown
@@ -67,6 +79,23 @@ if not defined LIMIT goto limit_bad
 shift
 shift
 goto options
+:opt_std
+set "STD=%~2"
+rem It must be gnu++, c++, gnu, c or nothing, then two characters, a digit first.
+set "VERSION=%STD%"
+if not defined VERSION goto std_bad
+if /i "%VERSION:~0,3%"=="gnu" set "VERSION=%VERSION:~3%"
+if not defined VERSION goto std_bad
+if /i "%VERSION:~0,1%"=="c" set "VERSION=%VERSION:~1%"
+if not defined VERSION goto std_bad
+if "%VERSION:~0,2%"=="++" set "VERSION=%VERSION:~2%"
+if not defined VERSION goto std_bad
+if "%VERSION:~1%"=="" goto std_bad
+if not "%VERSION:~2%"=="" goto std_bad
+for /f "delims=0123456789" %%A in ("%VERSION:~0,1%") do goto std_bad
+shift
+shift
+goto options
 
 :options_done
 set "KIT_LIMIT=%LIMIT%"
@@ -82,6 +111,7 @@ set "LIMIT=%KIT_LIMIT%"
 :limit_ok
 set "MODE=%~1"
 if "%MODE%"=="" goto usage
+if defined STD if /i not "%MODE%"=="cpp" if /i not "%MODE%"=="c" goto std_mode
 if /i "%MODE%"=="cpp" goto lang_cpp
 if /i "%MODE%"=="c" goto lang_c
 if /i "%MODE%"=="py" goto lang_py
@@ -111,10 +141,15 @@ echo   run.bat zip            only zip the files already in outputs\
 echo Options, before LANGUAGE or COMMAND:
 echo   --tests in_01.txt sample_in_02.txt ...   run only on these inputs
 echo   --timeout 10                             stop and skip an input after 10 s
+echo   --std 17                                 cpp and c: compile as C++17 (gnu++17
+echo                                            if the compiler has it), or e.g.
+echo                                            --std c++17, --std gnu++17, --std c99
 echo   e.g. run.bat --tests in_01.txt in_03.txt --timeout 10 cpp
 echo Each run saves its answers and log.txt in runs\^<date^>_^<time^>\. Answers that
 echo finished without crashing or timing out are copied to outputs\, which keeps
 echo the latest good answer of every input and is zipped into output.zip.
+echo Without --std, cpp and c use the newest standard up to the one CMS uses
+echo (gnu++20, gnu11) that the compiler has.
 echo Set CXX (cpp) or CC (c) to choose a compiler; cpp and c also find MSVC's cl.
 echo No compiler? See README.md.
 exit /b 1
@@ -129,6 +164,13 @@ set "COMPILER=%CXX%"
 set "FLAGS=%CXXFLAGS%"
 set "MSVC_FLAGS=%MSVC_CXXFLAGS%"
 set "LIBS="
+set "STD_LANG=c++"
+set "GNU_PREFIX=gnu++"
+set "STD_NAME=C++"
+set "CMS_STD=%CMS_CXX_STD%"
+set "STD_EXAMPLE=17"
+set "AUTO_VERSIONS=20 2a 17 1z 14 1y 11 0x"
+set "MSVC_AUTO=c++20 c++latest c++17 c++14"
 goto compile_c_family
 
 :lang_c
@@ -141,17 +183,118 @@ set "COMPILER=%CC%"
 set "FLAGS=%CFLAGS%"
 set "MSVC_FLAGS=%MSVC_CFLAGS%"
 set "LIBS=-lm"
+set "STD_LANG=c"
+set "GNU_PREFIX=gnu"
+set "STD_NAME=C"
+set "CMS_STD=%CMS_C_STD%"
+set "STD_EXAMPLE=99"
+set "AUTO_VERSIONS=11 1x 99 9x"
+set "MSVC_AUTO=c11"
 
 :compile_c_family
 for %%N in ("%COMPILER%") do set "COMPILER_NAME=%%~nN"
-echo Compiling %SOURCE% with %COMPILER%
-if /i "%COMPILER_NAME%"=="cl" goto compile_msvc
-if /i "%COMPILER_NAME%"=="clang-cl" goto compile_msvc
-"%COMPILER%" %FLAGS% -o "%BINARY%" "%DIR%%SOURCE%" %LIBS%
+set "MSVC="
+if /i "%COMPILER_NAME%"=="cl" set MSVC=1
+if /i "%COMPILER_NAME%"=="clang-cl" set MSVC=1
+call :pick_std
+if errorlevel 1 exit /b 1
+echo Compiling %SOURCE% with %COMPILER% %STD_FLAG%
+if defined MSVC goto compile_msvc
+"%COMPILER%" %STD_FLAG% %FLAGS% -o "%BINARY%" "%DIR%%SOURCE%" %LIBS%
 goto compiled
 :compile_msvc
-"%COMPILER%" %MSVC_FLAGS% /Fe"%BINARY%" /Fo"%OBJECT%" "%DIR%%SOURCE%"
+"%COMPILER%" %STD_FLAG% %MSVC_FLAGS% /Fe"%BINARY%" /Fo"%OBJECT%" "%DIR%%SOURCE%"
 goto compiled
+
+rem Set STD_FLAG to -std=... (/std:... for MSVC): --std, or the best standard
+rem up to CMS_STD that COMPILER has. GNU (gnu++17) comes before standard
+rem (c++17) unless --std asks for c++ or c. MSVC only has standard ones.
+:pick_std
+set "STD_FLAG="
+set "CHOSEN="
+set "NOT_FOUND="
+set "CANDIDATES="
+set "KIND=gnu"
+if defined MSVC set "KIND=standard"
+if not defined STD goto pick_std_auto
+set "VERSION=%STD%"
+if /i "%VERSION:~0,3%"=="gnu" set "VERSION=%VERSION:~3%"
+if /i "%VERSION%"=="%STD%" if /i "%VERSION:~0,1%"=="c" set "KIND=standard"
+if /i "%VERSION%"=="%STD%" if /i "%VERSION:~0,1%"=="c" set "VERSION=%VERSION:~1%"
+if "%VERSION:~0,2%"=="++" set "VERSION=%VERSION:~2%"
+call :std_alias %VERSION%
+for %%V in (%VERSION% %ALIAS%) do call :add_std %%V
+if defined MSVC if "%STD_LANG% %VERSION%"=="c++ 20" set "CANDIDATES=%CANDIDATES% c++latest"
+goto pick_std_try
+:pick_std_auto
+if defined MSVC set "CANDIDATES=%MSVC_AUTO%"
+if not defined MSVC for %%V in (%AUTO_VERSIONS%) do call :add_std %%V
+:pick_std_try
+for %%S in (%CANDIDATES%) do if not defined CHOSEN call :try_std %%S
+if defined MSVC del "%STD_CHECK%.*" 2>nul
+if defined CHOSEN goto pick_std_found
+rem No such compiler: compiling will say so.
+if defined NOT_FOUND exit /b 0
+if defined STD goto pick_std_unknown
+echo WARNING: %COMPILER% doesn't know %STD_NAME%%CMS_STD% or older standards, so compiling without -std. 1>&2
+exit /b 0
+:pick_std_unknown
+echo %COMPILER% doesn't know --std %STD%. Try an older standard, e.g. --std %STD_EXAMPLE%, or a newer compiler. 1>&2
+exit /b 1
+:pick_std_found
+set "STD_FLAG=-std=%CHOSEN%"
+if defined MSVC set "STD_FLAG=/std:%CHOSEN%"
+if defined STD exit /b 0
+rem Warn if CHOSEN isn't one of the names of the CMS standard.
+set "CANDIDATES=c++latest"
+call :std_alias %CMS_STD%
+for %%V in (%CMS_STD% %ALIAS%) do call :add_std %%V
+set "IS_CMS="
+for %%S in (%CANDIDATES%) do if /i "%%S"=="%CHOSEN%" set IS_CMS=1
+if defined IS_CMS exit /b 0
+echo WARNING: %COMPILER% doesn't know %STD_NAME%%CMS_STD%, which CMS uses, so compiling with %STD_FLAG%. If your code needs %STD_NAME%%CMS_STD%, use a newer compiler. 1>&2
+exit /b 0
+
+rem Add the GNU (unless KIND is standard) and standard names of version %1,
+rem e.g. gnu++17 and c++17, to CANDIDATES.
+:add_std
+if "%KIND%"=="gnu" set "CANDIDATES=%CANDIDATES% %GNU_PREFIX%%~1"
+set "CANDIDATES=%CANDIDATES% %STD_LANG%%~1"
+goto :eof
+
+rem Set ALIAS to the other name of standard %1, e.g. 2a for C++20, which
+rem compilers that are too old for the final name know.
+:std_alias
+set "ALIAS="
+if "%STD_LANG% %~1"=="c++ 23" set "ALIAS=2b"
+if "%STD_LANG% %~1"=="c++ 20" set "ALIAS=2a"
+if "%STD_LANG% %~1"=="c++ 17" set "ALIAS=1z"
+if "%STD_LANG% %~1"=="c++ 14" set "ALIAS=1y"
+if "%STD_LANG% %~1"=="c++ 11" set "ALIAS=0x"
+if "%STD_LANG% %~1"=="c 11" set "ALIAS=1x"
+if "%STD_LANG% %~1"=="c 99" set "ALIAS=9x"
+goto :eof
+
+rem Set CHOSEN to %1 if COMPILER knows that standard. cl only warns (D9002)
+rem about a /std it doesn't know, and clang-cl about an unknown argument.
+:try_std
+if defined MSVC goto try_std_msvc
+"%COMPILER%" -std=%~1 -x %STD_LANG% -fsyntax-only - <nul >nul 2>nul
+set "PROBE=%ERRORLEVEL%"
+if "%PROBE%"=="9009" set "NOT_FOUND=1"
+if "%PROBE%"=="0" set "CHOSEN=%~1"
+goto :eof
+:try_std_msvc
+set "CHECK=%STD_CHECK%.cpp"
+if "%STD_LANG%"=="c" set "CHECK=%STD_CHECK%.c"
+type nul >"%CHECK%"
+"%COMPILER%" /nologo /std:%~1 /Zs "%CHECK%" >"%STD_CHECK%.log" 2>&1
+set "PROBE=%ERRORLEVEL%"
+if "%PROBE%"=="9009" set "NOT_FOUND=1"
+if not "%PROBE%"=="0" goto :eof
+findstr /i /c:"D9002" /c:"unknown argument" "%STD_CHECK%.log" >nul
+if errorlevel 1 set "CHOSEN=%~1"
+goto :eof
 
 rem Set variable %1 to the first compiler found: %2, %3, then MSVC's cl.
 :find_compiler
@@ -397,11 +540,19 @@ echo --tests needs input names, e.g. --tests in_01.txt in_03.txt 1>&2
 exit /b 1
 
 :opt_unknown
-echo Unknown option %~1. The options are --tests and --timeout. 1>&2
+echo Unknown option %~1. The options are --tests, --timeout and --std. 1>&2
 exit /b 1
 
 :limit_bad
 echo --timeout needs a number of seconds, e.g. --timeout 10 1>&2
+exit /b 1
+
+:std_bad
+echo --std needs a C++ or C standard, e.g. --std 17, --std c++17, --std gnu++17 or --std c99 1>&2
+exit /b 1
+
+:std_mode
+echo --std only works with cpp and c. 1>&2
 exit /b 1
 
 :limit_needs_powershell
