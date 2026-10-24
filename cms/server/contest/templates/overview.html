@@ -182,6 +182,25 @@
 {% if actual_phase >= 0 or participation.unrestricted %}
 <h2>{% trans %}Task overview{% endtrans %}</h2>
 
+{% if total_score is defined %}
+    {% set total, total_max, total_partial = total_score %}
+<div id="total_score" class="well well-small task_score {{ get_score_class(total, total_max) }}">
+    <span>
+    {% if total_score_is_public_only %}
+        {% trans %}Total public score:{% endtrans %}
+    {% else %}
+        {% trans %}Total score:{% endtrans %}
+    {% endif %}
+    </span>
+    <span class="score">
+        {{ translation.format_decimal(total) }} / {{ translation.format_decimal(total_max) }}
+    {% if total_partial %}
+        <img src="{{ static_url("static", "loading.gif") }}" />
+    {% endif %}
+    </span>
+</div>
+{% endif %}
+
 <table class="table table-bordered table-striped">
     <!-- <colgroup>
         <col class="task"/>
