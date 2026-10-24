@@ -201,7 +201,7 @@
 </div>
 {% endif %}
 
-<table class="table table-bordered table-striped">
+<table class="table table-bordered table-striped task_overview">
     <!-- <colgroup>
         <col class="task"/>
         <col class="time_limit"/>
@@ -218,6 +218,9 @@
             <th>{% trans %}Memory limit{% endtrans %}</th>
             <th>{% trans %}Type{% endtrans %}</th>
             <th>{% trans %}Files{% endtrans %}</th>
+{% if task_scores is defined %}
+            <th>{% if total_score_is_public_only %}{% trans %}Public score{% endtrans %}{% else %}{% trans %}Score{% endtrans %}{% endif %}</th>
+{% endif %}
 {% if tokens_contest != TOKEN_MODE_DISABLED and tokens_tasks != TOKEN_MODE_DISABLED %}
             <th>{% trans %}Tokens{% endtrans %}</th>
 {% endif %}
@@ -246,6 +249,20 @@
             </td>
             <td>{{ get_task_type(dataset=t_iter.active_dataset).name }}</td>
             <td>{{ t_iter.submission_format|map("replace", ".%l", extensions)|join(" ") }}</td>
+    {% if task_scores is defined %}
+        {% set t_score_type = t_iter.active_dataset.score_type_object %}
+        {% set t_score, t_partial = task_scores[t_iter.id] %}
+        {% if t_score_type.max_public_score > 0 %}
+            <td class="task_score_cell {{ get_score_class(t_score, t_score_type.max_public_score) }}">
+                {{ t_score_type.format_score(t_score, t_score_type.max_public_score, none, translation=translation) }}
+            {% if t_partial %}
+                <img src="{{ static_url("static", "loading.gif") }}" />
+            {% endif %}
+            </td>
+        {% else %}
+            <td class="task_score_cell">{% trans %}N/A{% endtrans %}</td>
+        {% endif %}
+    {% endif %}
     {% if tokens_contest != TOKEN_MODE_DISABLED and tokens_tasks != TOKEN_MODE_DISABLED %}
             <td>
         {% if t_iter.token_mode == TOKEN_MODE_FINITE or t_iter.token_mode == TOKEN_MODE_INFINITE %}
