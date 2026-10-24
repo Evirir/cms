@@ -24,6 +24,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from collections import namedtuple
+from collections.abc import Iterable
 
 from sqlalchemy.orm import joinedload
 
@@ -33,7 +34,7 @@ from cmscommon.constants import \
 
 
 __all__ = [
-    "compute_changes_for_dataset", "task_score",
+    "compute_changes_for_dataset", "task_score", "public_total_score",
 ]
 
 
@@ -182,6 +183,35 @@ def task_score(
     score = round(score, task.score_precision)
     
     return score, partial
+
+
+def public_total_score(
+    participation: Participation,
+    tasks: Iterable[Task],
+) -> tuple[float, float, bool]:
+    """Return the sum of a user's public scores over the given tasks.
+
+    This is the total a contestant can see in CWS, i.e. the sum of the
+    per-task public scores shown on each task's submissions page.
+
+    participation: the user and contest for which to compute the score.
+    tasks: the tasks to sum over.
+
+    return: the total public score, the maximum possible total public
+        score, and True if not all submissions of the participation in
+        the tasks have been scored.
+
+    """
+    score = 0.0
+    max_score = 0.0
+    partial = False
+    for task in tasks:
+        t_score, t_partial = task_score(participation, task, public=True)
+        score += t_score
+        max_score += task.active_dataset.score_type_object.max_public_score
+        partial = partial or t_partial
+    precision = participation.contest.score_precision
+    return round(score, precision), round(max_score, precision), partial
 
 
 def _task_score_max_tokened_last(

@@ -25,7 +25,7 @@ from datetime import timedelta
 
 from cmstestsuite.unit_tests.databasemixin import DatabaseMixin
 
-from cms.grading.scoring import task_score
+from cms.grading.scoring import public_total_score, task_score
 from cmscommon.constants import \
     SCORE_MODE_MAX, SCORE_MODE_MAX_SUBTASK, SCORE_MODE_MAX_TOKENED_LAST
 from cmscommon.datetime import make_datetime
@@ -358,6 +358,89 @@ class TestTaskScoreMax(TaskScoreMixin, unittest.TestCase):
         self.add_result(self.at(2), 44.44443, tokened=False)
         self.session.flush()
         self.assertEqual(self.call(), (44.44, False))
+
+
+class TestPublicTotalScore(DatabaseMixin, unittest.TestCase):
+    """Tests for public_total_score()."""
+
+    def setUp(self):
+        super().setUp()
+        self.participation = self.add_participation()
+        self.participation.contest.score_precision = 2
+        self.timestamp = make_datetime()
+
+    def add_sum_task(self, public, hidden=0, points=10.0):
+        task = self.add_task(contest=self.participation.contest,
+                             score_mode=SCORE_MODE_MAX, score_precision=2)
+        dataset = self.add_dataset(task=task, score_type="Sum",
+                                   score_type_parameters=points)
+        task.active_dataset = dataset
+        for _ in range(public):
+            self.add_testcase(dataset=dataset, public=True)
+        for _ in range(hidden):
+            self.add_testcase(dataset=dataset, public=False)
+        return task
+
+    def add_result(self, task, offset, public_score, score=None):
+        submission = self.add_submission(
+            participation=self.participation, task=task,
+            timestamp=self.timestamp + timedelta(seconds=offset))
+        self.add_submission_result(
+            submission, task.active_dataset,
+            score=score if score is not None else public_score,
+            public_score=public_score,
+            score_details=[], public_score_details=[],
+            ranking_score_details=[])
+
+    def call(self, tasks):
+        self.session.flush()
+        return public_total_score(self.participation, tasks)
+
+    def test_no_tasks(self):
+        self.assertEqual(self.call([]), (0.0, 0.0, False))
+
+    def test_no_submissions(self):
+        tasks = [self.add_sum_task(public=3), self.add_sum_task(public=5)]
+        self.assertEqual(self.call(tasks), (0.0, 80.0, False))
+
+    def test_sums_best_score_of_each_task(self):
+        task_a = self.add_sum_task(public=3)
+        task_b = self.add_sum_task(public=5)
+        self.add_sum_task(public=2)
+        self.add_result(task_a, 1, 10.0)
+        self.add_result(task_a, 2, 20.0)
+        self.add_result(task_b, 3, 50.0)
+        self.add_result(task_b, 4, 30.0)
+        self.assertEqual(self.call(self.participation.contest.tasks),
+                         (70.0, 100.0, False))
+
+    def test_only_given_tasks(self):
+        task_a = self.add_sum_task(public=3)
+        task_b = self.add_sum_task(public=5)
+        self.add_result(task_a, 1, 10.0)
+        self.add_result(task_b, 2, 50.0)
+        self.assertEqual(self.call([task_b]), (50.0, 50.0, False))
+
+    def test_hidden_testcases_count_public_only(self):
+        task_a = self.add_sum_task(public=1, hidden=2)
+        task_b = self.add_sum_task(public=0, hidden=4)
+        self.add_result(task_a, 1, 10.0, score=30.0)
+        self.add_result(task_b, 2, 0.0, score=40.0)
+        self.assertEqual(self.call([task_a, task_b]), (10.0, 10.0, False))
+
+    def test_partial(self):
+        task_a = self.add_sum_task(public=3)
+        task_b = self.add_sum_task(public=5)
+        self.add_result(task_a, 1, 10.0)
+        self.add_result(task_b, 2, None)
+        self.assertEqual(self.call([task_a, task_b]), (10.0, 80.0, True))
+
+    def test_rounds_to_contest_precision(self):
+        task_a = self.add_sum_task(public=1, points=0.1)
+        task_b = self.add_sum_task(public=1, points=0.2)
+        self.add_result(task_a, 1, 0.1)
+        self.add_result(task_b, 2, 0.2)
+        self.assertEqual(self.call([task_a, task_b]), (0.3, 0.3, False))
 
 
 if __name__ == "__main__":

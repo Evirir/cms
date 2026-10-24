@@ -45,11 +45,13 @@ except:
     collections.MutableMapping = collections.abc.MutableMapping
 
 import tornado.web
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 from cms import config
-from cms.db import User, Participation, Team
+from cms.db import User, Participation, Submission, Team
 from cms.grading.languagemanager import get_language
+from cms.grading.scoring import public_total_score, task_score
 from cms.grading.steps import COMPILATION_MESSAGES, EVALUATION_MESSAGES
 from cms.server import multi_contest
 from cms.server.util import normalize_login_next_page
@@ -75,6 +77,23 @@ class MainHandler(ContestHandler):
     """
     @multi_contest
     def get(self):
+        participation: Participation | None = self.current_user
+        if participation is not None:
+            # Preload what task_score needs for every task in one query.
+            self.sql_session.query(Submission)\
+                .filter(Submission.participation == participation)\
+                .options(joinedload(Submission.token))\
+                .options(joinedload(Submission.results))\
+                .all()
+            self.r_params["task_scores"] = {
+                t.id: task_score(participation, t, public=True)
+                for t in self.contest.tasks}
+            self.r_params["total_score"] = public_total_score(
+                participation, self.contest.tasks)
+            self.r_params["total_score_is_public_only"] = any(
+                t.active_dataset.score_type_object.max_public_score
+                < t.active_dataset.score_type_object.max_score
+                for t in self.contest.tasks)
         self.render("overview.html", **self.r_params)
 
 

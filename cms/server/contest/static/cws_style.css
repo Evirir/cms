@@ -462,6 +462,22 @@ td.token_rules p:last-child {
     background-color: hsla(120, 100%, 50%, 0.4);
 }
 
+.task_overview td.task_score_cell {
+    white-space: nowrap;
+}
+
+.task_overview td.task_score_cell.score_0 {
+    background-color: hsla(0, 100%, 50%, 0.4);
+}
+
+.task_overview td.task_score_cell.score_0_100 {
+    background-color: hsla(60, 100%, 50%, 0.4);
+}
+
+.task_overview td.task_score_cell.score_100 {
+    background-color: hsla(120, 100%, 50%, 0.4);
+}
+
 /*** Submit a solution */
 
 #submit_solution {
