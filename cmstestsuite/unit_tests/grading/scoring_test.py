@@ -442,6 +442,31 @@ class TestPublicTotalScore(DatabaseMixin, unittest.TestCase):
         self.add_result(task_b, 2, 0.2)
         self.assertEqual(self.call([task_a, task_b]), (0.3, 0.3, False))
 
+    def test_precomputed_task_scores_match(self):
+        task_a = self.add_sum_task(public=3)
+        task_b = self.add_sum_task(public=5)
+        self.add_result(task_a, 1, 10.0)
+        self.add_result(task_b, 2, None)
+        self.session.flush()
+        tasks = [task_a, task_b]
+        task_scores = {
+            t.id: task_score(self.participation, t, public=True)
+            for t in tasks}
+        self.assertEqual(
+            public_total_score(self.participation, tasks, task_scores),
+            self.call(tasks))
+
+    def test_precomputed_task_scores_are_used(self):
+        task_a = self.add_sum_task(public=3)
+        task_b = self.add_sum_task(public=5)
+        self.add_result(task_a, 1, 10.0)
+        self.session.flush()
+        task_scores = {task_a.id: (12.5, False), task_b.id: (1.25, True)}
+        self.assertEqual(
+            public_total_score(
+                self.participation, [task_a, task_b], task_scores),
+            (13.75, 80.0, True))
+
 
 if __name__ == "__main__":
     unittest.main()

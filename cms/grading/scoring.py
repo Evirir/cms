@@ -24,7 +24,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from collections import namedtuple
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from sqlalchemy.orm import joinedload
 
@@ -188,6 +188,7 @@ def task_score(
 def public_total_score(
     participation: Participation,
     tasks: Iterable[Task],
+    task_scores: Mapping[int, tuple[float, bool]] | None = None,
 ) -> tuple[float, float, bool]:
     """Return the sum of a user's public scores over the given tasks.
 
@@ -196,6 +197,9 @@ def public_total_score(
 
     participation: the user and contest for which to compute the score.
     tasks: the tasks to sum over.
+    task_scores: the result of task_score(participation, task, public=True)
+        for each task, by task id; if given, these are summed instead of
+        being computed again.
 
     return: the total public score, the maximum possible total public
         score, and True if not all submissions of the participation in
@@ -206,7 +210,10 @@ def public_total_score(
     max_score = 0.0
     partial = False
     for task in tasks:
-        t_score, t_partial = task_score(participation, task, public=True)
+        if task_scores is not None:
+            t_score, t_partial = task_scores[task.id]
+        else:
+            t_score, t_partial = task_score(participation, task, public=True)
         score += t_score
         max_score += task.active_dataset.score_type_object.max_public_score
         partial = partial or t_partial

@@ -78,18 +78,24 @@ class MainHandler(ContestHandler):
     @multi_contest
     def get(self):
         participation: Participation | None = self.current_user
-        if participation is not None:
-            # Preload what task_score needs for every task in one query.
+        # Same condition under which overview.html shows the task table.
+        if participation is not None and (
+                self.r_params["actual_phase"] >= 0
+                or participation.unrestricted):
+            # The result is discarded: this query only loads every
+            # submission with its token and results into the session, so
+            # that task_score below doesn't issue one query per task.
             self.sql_session.query(Submission)\
                 .filter(Submission.participation == participation)\
                 .options(joinedload(Submission.token))\
                 .options(joinedload(Submission.results))\
                 .all()
-            self.r_params["task_scores"] = {
+            task_scores = {
                 t.id: task_score(participation, t, public=True)
                 for t in self.contest.tasks}
+            self.r_params["task_scores"] = task_scores
             self.r_params["total_score"] = public_total_score(
-                participation, self.contest.tasks)
+                participation, self.contest.tasks, task_scores)
             self.r_params["total_score_is_public_only"] = any(
                 t.active_dataset.score_type_object.max_public_score
                 < t.active_dataset.score_type_object.max_score
