@@ -252,7 +252,7 @@ $(document).ready(function () {
     <li>{% trans url=contest_url("tasks", task.name, "attachments", "attachment.zip"), statement_url=contest_url("tasks", task.name, "description") %}Download <a href="{{ url }}"><strong>attachment.zip</strong></a> for the input files. It's also on the <a href="{{ statement_url }}">Statement</a> page.{% endtrans %}</li>
     {% endif %}
     {% if has_zip_form %}
-    <li>{% trans %}There are two ways to submit. Any output you leave out is taken from your previous submission.{% endtrans %}</li>
+    <li>{% trans %}There are two ways to submit. Any output you leave out is taken from your latest submission, if you have one.{% endtrans %}</li>
     {% else %}
     <li>{% trans %}Submit your output file below.{% endtrans %}</li>
     {% endif %}
