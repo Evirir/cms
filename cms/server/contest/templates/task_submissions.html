@@ -247,15 +247,17 @@ $(document).ready(function () {
   {% set has_zip_form = task.submission_format|length > 1 and not task.submission_format|any("endswith", ".%l") %}
   {% set has_attachment_zip = "attachment.zip" in task.attachments %}
   {% if task_type.ALLOW_PARTIAL_SUBMISSION %}
-    {% if has_attachment_zip or has_zip_form %}
+    {% set attachment_help %}{% trans url=contest_url("tasks", task.name, "attachments", "attachment.zip"), statement_url=contest_url("tasks", task.name, "description") %}Download <a href="{{ url }}"><strong>attachment.zip</strong></a> for the input files. It's also on the <a href="{{ statement_url }}">Statement</a> page.{% endtrans %}{% endset %}
+    {% set zip_form_help %}{% trans %}There are two ways to submit. Any output you leave out is taken from your latest submission, if you have one.{% endtrans %}{% endset %}
+    {% if has_attachment_zip and has_zip_form %}
   <ol id="partial_submission_help">
-      {% if has_attachment_zip %}
-    <li>{% trans url=contest_url("tasks", task.name, "attachments", "attachment.zip"), statement_url=contest_url("tasks", task.name, "description") %}Download <a href="{{ url }}"><strong>attachment.zip</strong></a> for the input files. It's also on the <a href="{{ statement_url }}">Statement</a> page.{% endtrans %}</li>
-      {% endif %}
-      {% if has_zip_form %}
-    <li>{% trans %}There are two ways to submit. Any output you leave out is taken from your latest submission, if you have one.{% endtrans %}</li>
-      {% endif %}
+    <li>{{ attachment_help }}</li>
+    <li>{{ zip_form_help }}</li>
   </ol>
+    {% elif has_attachment_zip %}
+  <p id="partial_submission_help">{{ attachment_help }}</p>
+    {% elif has_zip_form %}
+  <p id="partial_submission_help">{{ zip_form_help }}</p>
     {% endif %}
     {% if not has_zip_form %}
   <p><strong>{% trans %}You may submit any subset of outputs in a single submission.{% endtrans %}</strong></p>
