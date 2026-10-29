@@ -325,7 +325,7 @@ def test_batch_task(mixed_package: Path) -> None:
     assert task is not None
     assert task.name == "sorting-code"
     assert task.title == "Sorting (Code)"
-    assert task.submission_format == ["sorting-code.%l"]
+    assert task.submission_format == ["Main.%l"]
     dataset = task.active_dataset
     assert dataset.task_type == "Batch"
     assert dataset.task_type_parameters == ["alone", ["", ""], "diff"]
