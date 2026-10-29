@@ -88,6 +88,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_OUTPUT_ONLY_GROUP_SUBSTRING = "OO"
 DEFAULT_SAMPLES_GROUPS = ("sample", "samples")
 BATCH_TASK_SUFFIX = "-code"
+# Batch submission file; Java runs the class named after it, so it must be a
+# valid Java class name.
+BATCH_SUBMISSION_FORMAT = "Main.%l"
 OUTPUT_ONLY_TASK_SUFFIX = "-output"
 BATCH_TITLE_SUFFIX = " (Code)"
 OUTPUT_ONLY_TITLE_SUFFIX = " (Output)"
@@ -726,7 +729,7 @@ class MIPSPolygonBatchTaskLoader(_MIPSPolygonTaskLoaderBase):
         logger.info("Loading Batch task %s.", name)
 
         args = self._task_args(name, package.title + BATCH_TITLE_SUFFIX, get_statement)
-        args["submission_format"] = [f"{name}.%l"]
+        args["submission_format"] = [BATCH_SUBMISSION_FORMAT]
         args["attachments"] = self._samples_attachments(name)
         self._apply_general_conf(args)
         task = Task(**args)
