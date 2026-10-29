@@ -67,8 +67,8 @@ class JavaJDK(Language):
                                  for_evaluation=True):
         """See Language.get_compilation_commands."""
         commands = []
-        if len(source_filenames) == 1:
-            main_source = JavaJDK.MAIN_CLASS + ".java"
+        main_source = JavaJDK.MAIN_CLASS + ".java"
+        if len(source_filenames) == 1 and source_filenames[0] != main_source:
             commands.append(["/bin/cp", source_filenames[0], main_source])
             source_filenames = [main_source]
         compile_command = ["/usr/bin/javac"] + source_filenames

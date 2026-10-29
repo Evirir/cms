@@ -21,7 +21,7 @@ from cms.grading.languages.java_jdk import JavaJDK
 
 
 def test_single_source_compiles_as_main():
-    """A solution without a grader is copied to Main.java before javac."""
+    """Test that a solution without a grader is copied to Main.java."""
     commands = JavaJDK().get_compilation_commands(
         ["task-code.java"], "task-code.jar")
     assert commands[0] == ["/bin/cp", "task-code.java", "Main.java"]
@@ -29,8 +29,15 @@ def test_single_source_compiles_as_main():
     assert len(commands) == 3
 
 
+def test_main_source_is_not_copied():
+    """Test that a solution already named Main.java is compiled as is."""
+    commands = JavaJDK().get_compilation_commands(["Main.java"], "Main.jar")
+    assert commands[0] == ["/usr/bin/javac", "Main.java"]
+    assert len(commands) == 2
+
+
 def test_grader_sources_keep_their_names():
-    """With a grader, the sources are compiled under their own names."""
+    """Test that sources compiled with a grader keep their names."""
     commands = JavaJDK().get_compilation_commands(
         ["grader.java", "task.java"], "task.jar")
     assert commands[0] == ["/usr/bin/javac", "grader.java", "task.java"]
@@ -38,13 +45,13 @@ def test_grader_sources_keep_their_names():
 
 
 def test_solution_runs_main_class():
-    """A solution run under the executable's own name runs Main."""
+    """Test that a solution run under the executable's name runs Main."""
     commands = JavaJDK().get_evaluation_commands(
         "task-code.jar", main="task-code")
     assert commands[-1][-1] == "Main"
 
 
 def test_grader_main_class_is_kept():
-    """A grader main class is passed through unchanged."""
+    """Test that a grader main class is passed through unchanged."""
     commands = JavaJDK().get_evaluation_commands("task.jar", main="grader")
     assert commands[-1][-1] == "grader"
