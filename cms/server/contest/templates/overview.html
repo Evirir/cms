@@ -182,7 +182,24 @@
 {% if actual_phase >= 0 or participation.unrestricted %}
 <h2>{% trans %}Task overview{% endtrans %}</h2>
 
-<table class="table table-bordered table-striped">
+{% set total, total_max, total_partial = total_score %}
+<div id="total_score" class="well well-small task_score {{ get_score_class(total, total_max) }}">
+    <span>
+{% if total_score_is_public_only %}
+    {% trans %}Total public score:{% endtrans %}
+{% else %}
+    {% trans %}Total score:{% endtrans %}
+{% endif %}
+    </span>
+    <span class="score">
+        {{ translation.format_decimal(total) }} / {{ translation.format_decimal(total_max) }}
+{% if total_partial %}
+        <img src="{{ static_url("static", "loading.gif") }}" />
+{% endif %}
+    </span>
+</div>
+
+<table class="table table-bordered table-striped task_overview">
     <!-- <colgroup>
         <col class="task"/>
         <col class="time_limit"/>
@@ -199,6 +216,7 @@
             <th>{% trans %}Memory limit{% endtrans %}</th>
             <th>{% trans %}Type{% endtrans %}</th>
             <th>{% trans %}Files{% endtrans %}</th>
+            <th>{% if total_score_is_public_only %}{% trans %}Public score{% endtrans %}{% else %}{% trans %}Score{% endtrans %}{% endif %}</th>
 {% if tokens_contest != TOKEN_MODE_DISABLED and tokens_tasks != TOKEN_MODE_DISABLED %}
             <th>{% trans %}Tokens{% endtrans %}</th>
 {% endif %}
@@ -227,6 +245,18 @@
             </td>
             <td>{{ get_task_type(dataset=t_iter.active_dataset).name }}</td>
             <td>{{ t_iter.submission_format|map("replace", ".%l", extensions)|join(" ") }}</td>
+    {% set t_score_type = t_iter.active_dataset.score_type_object %}
+    {% set t_score, t_partial = task_scores[t_iter.id] %}
+    {% if t_score_type.max_public_score > 0 %}
+            <td class="task_score_cell {{ get_score_class(t_score, t_score_type.max_public_score) }}">
+                {{ t_score_type.format_score(t_score, t_score_type.max_public_score, none, translation=translation) }}
+        {% if t_partial %}
+                <img src="{{ static_url("static", "loading.gif") }}" />
+        {% endif %}
+            </td>
+    {% else %}
+            <td class="task_score_cell">{% trans %}N/A{% endtrans %}</td>
+    {% endif %}
     {% if tokens_contest != TOKEN_MODE_DISABLED and tokens_tasks != TOKEN_MODE_DISABLED %}
             <td>
         {% if t_iter.token_mode == TOKEN_MODE_FINITE or t_iter.token_mode == TOKEN_MODE_INFINITE %}

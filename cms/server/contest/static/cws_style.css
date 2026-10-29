@@ -462,6 +462,22 @@ td.token_rules p:last-child {
     background-color: hsla(120, 100%, 50%, 0.4);
 }
 
+.task_overview td.task_score_cell {
+    white-space: nowrap;
+}
+
+.task_overview td.task_score_cell.score_0 {
+    background-color: hsla(0, 100%, 50%, 0.4);
+}
+
+.task_overview td.task_score_cell.score_0_100 {
+    background-color: hsla(60, 100%, 50%, 0.4);
+}
+
+.task_overview td.task_score_cell.score_100 {
+    background-color: hsla(120, 100%, 50%, 0.4);
+}
+
 /*** Submit a solution */
 
 #submit_solution {
@@ -488,6 +504,20 @@ td.token_rules p:last-child {
 
 #submit_solution .controls {
     margin-left: 110px;
+}
+
+/* Fit file names like output_sample_01.txt. */
+#submit_solution .span5 .control-label {
+    width: 140px;
+}
+
+#submit_solution .span5 .controls {
+    margin-left: 150px;
+}
+
+/* Keep the submission.zip form inside its column. */
+#submit_solution .span4 input[type="file"] {
+    width: 190px;
 }
 
 #submit_solution input[type="file"] {

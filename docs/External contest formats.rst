@@ -178,3 +178,85 @@ Since Polygon doesn't support CMS directly, some task parameters cannot be set u
 By default, all tasks are batch files, with custom checker and score type is Sum. Loaders assumes that checker is check.cpp and written with usage of testlib.h. It provides customized version of testlib.h which allows using Polygon checkers with CMS. Checkers will be compiled during importing the contest. This is important in case the architecture where the loading happens is different from the architecture of the workers.
 
 Polygon (by now) doesn't allow custom contest-wide files, so general contest options should be hard-coded in the loader.
+
+Polygon full packages (polyconv-style)
+--------------------------------------
+
+These loaders import Polygon **full** packages following `polyconv <https://github.com/Evirir/polyconv>`__, with Polygon's subtasks and OutputOnly tests. They are never autodetected, so always pass them with ``-L``:
+
+- ``mips_polygon_contest`` imports a Polygon **contest** package: :file:`contest.xml` and one full package per problem in :file:`problems/`.
+- ``mips_polygon_output_only`` and ``mips_polygon_batch`` import one problem (the directory containing :file:`problem.xml`) as its OutputOnly task or its Batch task. ``cmsImportTask`` builds one task per run, so a problem with both tasks needs both loaders.
+
+The package must contain the generated tests in :file:`tests/` (Polygon's "full" package, not "standard"); otherwise the import fails and lists the missing files. It also fails if two problems give the same task name.
+
+Tasks
+^^^^^
+
+Each problem becomes up to two tasks, the OutputOnly task right before the Batch task:
+
+- **OutputOnly task** ``<short-name>-output``, titled ``<name> (Output)``: the samples, then the tests whose group name contains ``OO`` (case-sensitive, e.g. ``s1-OO`` or ``OO2``). Created only if there are such tests.
+- **Batch task** ``<short-name>-code``, titled ``<name> (Code)``: every test, OutputOnly ones included, with codenames such as ``07_s3`` (test number and group). Not created if all the non-sample tests are OutputOnly.
+
+The title uses the English problem name, or the first name if there is no English one. All testcases are public. The checker is compiled at import time with CMS's patched :file:`testlib.h` and the package resources (e.g. headers it includes); the import fails if it doesn't compile.
+
+Scoring
+^^^^^^^
+
+Both tasks use GroupMin, built from the Polygon groups, their points, their ``complete-group``/``each-test`` points policies and their dependencies.
+
+- **Subtask 0 is the samples**, in both tasks, as a single subtask even if the samples group uses ``each-test``. Every package needs a samples group (``sample`` or ``samples``, or ``SAMPLES_GROUP`` from :file:`cms_conf.py`) with at least one test; the import fails without one.
+- **Batch task:** a ``complete-group`` group is one subtask covering the group and the groups it depends on; an ``each-test`` group is one subtask per test, each also covering the group's dependencies.
+- **OutputOnly task:** one subtask per OutputOnly test. Dependencies are ignored.
+- **OutputOnly groups are not Batch subtasks**, since their points belong to the OutputOnly task, but Batch subtasks that depend on them still include their tests.
+- **0-point groups and tests other than the samples are helpers** shared by other groups: they are not subtasks in either task, but their tests stay in the dataset and in every subtask that depends on them.
+
+Samples and attachments
+^^^^^^^^^^^^^^^^^^^^^^^
+
+- Every task has :file:`samples.zip` with ``sample_in_01.txt``, ``sample_out_01.txt``, ...
+- In the OutputOnly task the samples are codenames ``sample_01``, ..., submitted as ``out_sample_01.txt``, ...; the other tests are ``01``, ``02``, ..., submitted as ``out_01.txt``, ...
+- The OutputOnly task's :file:`attachment.zip` is a contestant kit: all the inputs in :file:`inputs/` (``sample_in_01.txt``, ..., ``in_01.txt``, ...), templates in :file:`code/` for every CMS language (:file:`solution.cpp`, :file:`solution.c`, :file:`solution.py`, :file:`Solution.java`, :file:`solution.cs`, :file:`solution.rs`, :file:`solution.php`, :file:`solution.hs`, :file:`solution.pas`), a README, and :file:`run.sh`/:file:`run.bat`. The scripts run a solution on every input and zip the outputs into :file:`output.zip` for submission: ``run.sh LANGUAGE`` (``cpp``, ``c``, ``py``, ``java``, ``cs``, ``rs``, ``php``, ``hs`` or ``pas``) compiles and runs that template, with CMS's flags where the compiler matches; ``cpp`` uses ``CXX``, else ``g++``, else ``clang++`` and ``c`` uses ``CC``, else ``gcc``, else ``clang`` (``run.bat`` also tries MSVC ``cl``, and ``csc`` for C#); ``run.sh COMMAND`` runs any other command or program. Options before the language or command: ``--tests in_01.txt sample_in_02.txt ...`` runs only those inputs (``in_01``, ``01`` and ``inputs/in_01.txt`` also work) and ``--timeout SECONDS`` stops and skips an input that runs too long. Each run is kept in :file:`runs/<date>_<time>/` with a :file:`log.txt`; only answers that did not crash or time out are copied to :file:`outputs/`, which holds the latest good answer of every input and is zipped into :file:`output.zip`.
+
+Configuration
+^^^^^^^^^^^^^
+
+An optional :file:`files/cms_conf.py` in the package may define:
+
+- ``general``: extra task arguments, applied to both tasks;
+- ``OUTPUT_ONLY_GROUP_SUBSTRING``: the substring marking OutputOnly groups, instead of ``OO``;
+- ``SAMPLES_GROUP``: the exact name of the samples group.
+
+Every task gets ``feedback_level = "oi_restricted"``, ``score_mode = "max_subtask"`` (IOI 2017-), ``max_submission_number = 60`` and ``max_user_test_number = 30`` by default; override them in ``general``, e.g. ``general = {"feedback_level": "full", "max_submission_number": None}``.
+
+Importing a contest
+^^^^^^^^^^^^^^^^^^^
+
+.. sourcecode:: bash
+
+    cmsImportContest -i -L mips_polygon_contest path/to/contest
+
+The contest is named after the package directory, allows user tests, and its tasks follow the order of :file:`contest.xml`. As with ``polygon_contest``, an optional :file:`contestants.txt` lists participations of existing users, one per line as ``username;password;first_name;last_name;hidden``.
+
+To update an existing contest, name the directory as the contest and run:
+
+.. sourcecode:: bash
+
+    cmsImportContest -i -U -L mips_polygon_contest path/to/contest
+
+- ``-U`` updates the existing tasks in place: testcases, score parameters, submission format, attachments and statements are replaced, while task IDs and submissions are kept. Existing submissions are not rescored automatically.
+- ``-i`` imports the tasks that don't exist yet.
+- The contest's task list is replaced by the package's: a task missing from the package is detached from the contest (not deleted).
+- Don't add ``-u``: it resets the contest settings (times, languages, tokens, limits) to the loader's defaults.
+- Leave out :file:`contestants.txt` unless you want the listed users' passwords and hidden flags overwritten.
+
+Importing one problem
+^^^^^^^^^^^^^^^^^^^^^
+
+To add a problem to an existing contest, import the OutputOnly task first so it comes before the Batch task, and skip the loader for a task the problem doesn't have:
+
+.. sourcecode:: bash
+
+    cmsImportTask -c CONTEST_ID -L mips_polygon_output_only path/to/package
+    cmsImportTask -c CONTEST_ID -L mips_polygon_batch path/to/package
+
+Add ``-u`` to update tasks that already exist; they keep their position in the contest. Tasks are found by name, so if a task was renamed in Polygon, pass its current CMS name with ``-n``.
