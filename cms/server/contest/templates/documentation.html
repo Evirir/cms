@@ -19,7 +19,7 @@
 {% if contest.languages|map("to_language")|map(attribute="source_extensions")|any("contains", ".java") %}
 <h3>Java</h3>
 
-<p>{% trans %}The main Java class of the solution should have exactly the same name as the task.{% endtrans %}</p>
+<p>{% trans %}The main Java class of the solution should be named Main.{% endtrans %}</p>
 {% endif %}
 
 

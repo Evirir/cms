@@ -1,5 +1,5 @@
 
-public class batchfileio {
+public class Main {
 
     public static void main(String[] args) {
         Mmh no, it will not work

@@ -1,6 +1,6 @@
 import java.util.Scanner;
 
-public class batchstdio {
+public class Main {
 
     private static class Inner {
         public String solve(int n) {
